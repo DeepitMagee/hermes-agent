@@ -262,6 +262,48 @@ class TestVoiceChannelSidecarNote:
         assert note and "dev-vc (2 members)" in note
 
 
+def _multiplex_vc_runner(primary_vc, secondary_vc):
+    primary = _VcAdapter(primary_vc)
+    secondary = _VcAdapter(secondary_vc)
+    runner = _make_runner(adapters={Platform.DISCORD: primary})
+    runner._profile_adapters = {"otto": {Platform.DISCORD: secondary}}
+    runner.config = SimpleNamespace(multiplex_profiles=True)
+    return runner, primary, secondary
+
+
+def _secondary_source():
+    return SessionSource(
+        platform=Platform.DISCORD,
+        chat_id="c1",
+        chat_type="channel",
+        user_id="u1",
+        profile="otto",
+    )
+
+
+class TestVoiceChannelSidecarNoteMultiplexed:
+    """#139345: the note must never be read from another bot's call state.
+
+    The two negative halves of the report, ported from the competing draft
+    #139359 (closed in favour of this one, whose author offered them there).
+    """
+
+    def test_secondary_never_borrows_the_primary_call(self):
+        runner, _primary, _secondary = _multiplex_vc_runner(
+            "**Voice:** ops-vc (5 members)", ""
+        )
+        note = runner._voice_channel_sidecar_note(_vc_event(), _secondary_source(), "sk")
+        assert note is None
+
+    def test_disconnected_secondary_fails_closed(self):
+        runner, _primary, _secondary = _multiplex_vc_runner(
+            "**Voice:** ops-vc (5 members)", ""
+        )
+        runner._profile_adapters = {}
+        note = runner._voice_channel_sidecar_note(_vc_event(), _secondary_source(), "sk")
+        assert note is None
+
+
 # ---------------------------------------------------------------------------
 # 5. Sidecar note staging: one-shot per turn
 # ---------------------------------------------------------------------------
