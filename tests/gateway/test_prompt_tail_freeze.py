@@ -246,6 +246,21 @@ class TestVoiceChannelSidecarNote:
         runner, _ = _vc_runner("")
         assert runner._voice_channel_sidecar_note(_vc_event(), _source(), "sk") is None
 
+    def test_secondary_profile_reads_its_own_bot_voice_context(self):
+        # Multiplexed gateway: the voice binding lives on the adapter whose bot is
+        # in the call, so the note must be read from the adapter that answers the
+        # source -- not from the default profile's adapter map.
+        primary = _VcAdapter("")
+        secondary = _VcAdapter("**Voice:** dev-vc (2 members)")
+        runner = _make_runner(
+            adapters={Platform.DISCORD: primary},
+            _profile_adapters={"otto": {Platform.DISCORD: secondary}},
+        )
+        source = _source()
+        source._transport_adapter_ref = lambda: secondary
+        note = runner._voice_channel_sidecar_note(_vc_event(), source, "sk")
+        assert note and "dev-vc (2 members)" in note
+
 
 # ---------------------------------------------------------------------------
 # 5. Sidecar note staging: one-shot per turn
