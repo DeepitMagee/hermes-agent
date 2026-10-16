@@ -141,19 +141,10 @@ async def _mutate(agent, client, session_id, command, arg):
     operation, payload = ('reset', {}) if command in {'new', 'clear'} else slash_mutation('/' + command, arg)
     confirm = agent._model_confirmer(session_id) if operation == 'model' else None
     result = await agent._mutations.apply(client, session_id, operation, payload, confirm=confirm)
-    status = result.get('status')
-    if status == 'cancelled':
-        from agent.i18n import t
-        reply = t('cli.model.switch_cancelled')
-    elif status == 'deferred':
-        # A pick during a running turn: stored for the next turn, nothing changed yet.
-        reply = deferred_pick_text(result)
-    elif status == 'preview':
-        # Read-only report: nothing changed, so the editor's snapshot is still current.
-        reply = '\n'.join(result['lines'])
-    elif status == 'noop':
-        # Nothing removable (an empty session too): the owner's shared report, nothing committed.
-        reply = _summary_text(result) or 'No changes from compression.'
+    # Answers that changed nothing (declined, deferred to the next turn, a preview, nothing to remove).
+    unchanged = _UNCHANGED.get(result.get('status'))
+    if unchanged is not None:
+        reply = unchanged(result)
     else:
         agent._snapshots[session_id] = await client.rpc('session.resume', session_id=session_id)
         if operation in {'reset', 'compress'}:
@@ -163,6 +154,22 @@ async def _mutate(agent, client, session_id, command, arg):
                  'reset': lambda: 'Conversation history cleared.'}[operation]()
     agent._mutations.acknowledge(session_id, operation, payload)
     return reply
+
+
+def _cancelled_text(_result):
+    from agent.i18n import t
+    return t('cli.model.switch_cancelled')
+
+
+# A mutation answer that committed nothing, so the editor's snapshot is still current: a declined
+# guarded pick, a pick during a running turn (stored for the next turn), a read-only compress
+# preview, and a compress with nothing removable (the owner's shared report).
+_UNCHANGED = {
+    'cancelled': _cancelled_text,
+    'deferred': lambda result: deferred_pick_text(result),
+    'preview': lambda result: '\n'.join(result['lines']),
+    'noop': lambda result: _summary_text(result) or 'No changes from compression.',
+}
 
 
 async def _refresh_context(agent, client, session_id, operation):
