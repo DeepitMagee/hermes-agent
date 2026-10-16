@@ -180,7 +180,7 @@ _MEDIA_KIND_KEYS = {
 from gateway.platforms.event import MessageEvent, MessageType, ProcessingOutcome
 from plugins.platforms.telegram.telegram_entities import expand_link_entities
 from plugins.platforms.telegram.telegram_held_inbound import TelegramHeldInboundMixin
-from plugins.platforms.telegram.telegram_ids import normalize_telegram_chat_id
+from plugins.platforms.telegram.telegram_ids import normalize_telegram_chat_id, parse_telegram_message_id
 from plugins.platforms.telegram.telegram_network import (
     SEED_FALLBACK_IPS, TelegramFallbackTransport, discover_fallback_ips, parse_fallback_ip_env, tcp_keepalive_socket_options)
 from utils import env_float, env_int
@@ -1003,24 +1003,9 @@ class TelegramAdapter(TelegramHeldInboundMixin, BasePlatformAdapter):
         topic_id = (metadata or {}).get("direct_messages_topic_id") or (metadata or {}).get("telegram_direct_messages_topic_id")
         return str(topic_id) if topic_id is not None else None
 
-    @staticmethod
-    def _telegram_message_id(value: Any) -> Optional[int]:
-        """A reply anchor as a Telegram message id, or None when it is not one.
-
-        Anchors are opaque event ids upstream: a route wake (kanban-wake, loop-tick) is admitted with a
-        synthetic JSON identity (``session_automation.admit_route_wake``), and ``_reply_anchor_for_event``
-        hands it to the send verbatim. Raw ``int()`` on that raised ValueError and failed every reply into
-        the session (#139611); an unanchored reply is strictly better than a failed send."""
-        if isinstance(value, bool):
-            return None
-        if isinstance(value, int):
-            return value if value > 0 else None
-        text = str(value).strip() if value is not None else ""
-        return int(text) if text.isascii() and text.isdigit() and int(text) > 0 else None
-
     @classmethod
     def _metadata_reply_to_message_id(cls, metadata: Optional[dict[str, Any]]) -> Optional[int]:
-        return cls._telegram_message_id((metadata or {}).get("telegram_reply_to_message_id"))
+        return parse_telegram_message_id((metadata or {}).get("telegram_reply_to_message_id"))
 
     @staticmethod
     def _dm_topic_fallback(metadata: Optional[dict[str, Any]]) -> bool:
@@ -1042,8 +1027,7 @@ class TelegramAdapter(TelegramHeldInboundMixin, BasePlatformAdapter):
     @classmethod
     def _reply_to_message_id_for_send(
         cls, reply_to: Optional[str], metadata: Optional[dict[str, Any]] = None, reply_to_mode: Optional[str] = None) -> Optional[int]:
-        anchor = cls._telegram_message_id(reply_to)
-        if anchor is not None:
+        if (anchor := parse_telegram_message_id(reply_to)) is not None:
             return anchor
         if cls._dm_topic_fallback(metadata) and reply_to_mode != "off":
             return cls._metadata_reply_to_message_id(metadata)
@@ -1442,9 +1426,7 @@ class TelegramAdapter(TelegramHeldInboundMixin, BasePlatformAdapter):
         metadata_reply_to = self._metadata_reply_to_message_id(metadata)
         private_dm_topic_send = self._is_private_dm_topic_send(chat_id, thread_id, metadata)
         dm_topic_reply_to_off = private_dm_topic_send and self._reply_to_mode == "off" and self._dm_topic_fallback(metadata)
-        explicit_reply_to = self._telegram_message_id(reply_to)
-        reply_to_source = (str(explicit_reply_to) if explicit_reply_to is not None else None) or (
-            str(metadata_reply_to) if private_dm_topic_send and metadata_reply_to is not None else None)
+        reply_to_source = next((str(i) for i in (parse_telegram_message_id(reply_to), metadata_reply_to if private_dm_topic_send else None) if i is not None), None)
         if private_dm_topic_send:
             should_thread = reply_to_source is not None and self._reply_to_mode != "off"
         else:
