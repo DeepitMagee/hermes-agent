@@ -25,6 +25,7 @@ test.each([
   { method: 'session.resume', warm: false }
 ])('a question remains answerable through $method (warm=$warm)', async ({ method, warm }) => {
   vi.spyOn(JsonRpcGatewayClient.prototype, 'connect').mockResolvedValue()
+
   const wire = vi.spyOn(JsonRpcGatewayClient.prototype, 'request').mockImplementation(async name => {
     if (name === 'session.resume') {
       return { session_id: 'waiting', stored_session_id: 'waiting', revision: 1, execution_generation: 3,
@@ -34,9 +35,11 @@ test.each([
 
     return { status: 'resolved' } as never
   })
+
   const client = new HermesGateway()
   const previousGateway = $gateway.get()
   $gateway.set(client)
+
   const shown = vi.fn((request: ServerRequest) => handleServerRequest({ ...request, profile: 'default' }, {
     activeSessionIdRef: { current: 'waiting' },
     sessionInterrupted: () => false,
@@ -44,6 +47,7 @@ test.each([
     updateSessionState: vi.fn(),
     upsertToolCall: vi.fn()
   }, 'waiting'))
+
   client.onRequest(shown)
 
   try {
@@ -83,13 +87,16 @@ test.each([
 
 test.each([false, true])('an empty snapshot clears only questions predating it (newer=$newer)', newer => {
   const startedAt = Date.now() / 1000
+
   const snapshot = new CanonicalDesktopProtocol().result('session.resume', { session_id: 'waiting' }, {
     session_id: 'waiting', revision: 1, execution_generation: 3, running: false, prompts: []
   })
+
   const request = {
     sessionId: 'waiting', requestId: 'question-1', receivedAt: startedAt + (newer ? 1 : -1),
     questions: [{ qid: 'question-1', question: 'Which target?', choices: ['staging'], multiSelect: false }]
   }
+
   $clarifyRequests.set({ waiting: request })
 
   const restored = restorePendingClarifyFromSnapshot(snapshot, 'waiting', startedAt)
@@ -104,7 +111,9 @@ test('snapshots expose batch question params without losing already locked answe
     { qid: 'q1', question: 'Which target?', choices: ['staging'], multi_select: false },
     { qid: 'q2', question: 'Which mode?', choices: ['read only'], multi_select: false }
   ]
+
   const answers = { q1: 'staging' }
+
   const snapshot = new CanonicalDesktopProtocol().result('session.resume', { session_id: 'waiting' }, {
     session_id: 'waiting', revision: 1, execution_generation: 3, prompts: [
       { kind: 'clarify', prompt_id: 'question-1', questions, answers, execution_generation: 3 }
