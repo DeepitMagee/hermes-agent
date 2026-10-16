@@ -126,6 +126,14 @@ class PlatformEntry:
     # than a token (Weixin: token AND account_id) can refuse it. None = ``token or api_key``, then
     # ``is_connected`` / ``validate_config``.
     config_connected_fn: Optional[Callable[[Any], bool]] = None
+    # --- authz ---
+    # ``<PLATFORM>_ALLOW_BOTS`` (YAML ``allow_bots`` wins): bot senders it admits ("mentions"/"all")
+    # bypass the human allowlist, checked before the no-user-id guard. "" = bots get no bypass.
+    allow_bots_env: str = ""
+    # (dm_policy_env, group_policy_env) of a platform with its own dm/group policy: when enabled and
+    # either resolves "open" without ``allow_all_env`` / GATEWAY_ALLOW_ALL_USERS, startup is refused.
+    # A "" member = that policy is YAML-only (QQ Bot). None = no own policy, never checked.
+    own_policy_env: Optional[tuple] = None
 
 
 def core_ships_platform(name: str) -> bool:

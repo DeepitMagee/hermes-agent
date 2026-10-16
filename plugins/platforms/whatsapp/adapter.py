@@ -1239,4 +1239,5 @@ def register(ctx) -> None:
         setup_fn=interactive_setup, apply_yaml_config_fn=_apply_yaml_config, allowed_users_env="WHATSAPP_ALLOWED_USERS",
         allow_all_env="WHATSAPP_ALLOW_ALL_USERS", cron_deliver_env_var="WHATSAPP_HOME_CHANNEL",
         standalone_sender_fn=_standalone_send, max_message_length=4096, emoji="💬", allow_update_command=True,
+        own_policy_env=("WHATSAPP_DM_POLICY", "WHATSAPP_GROUP_POLICY"),
     )

@@ -60,6 +60,31 @@ def recover_left_core_at_gateway_start() -> None:
         recover_left_core_in(root)
 
 
+
+def _own_policy_envs(platform) -> Optional[tuple]:
+    """``(dm_policy_env, group_policy_env, allow_all_env)`` when the plugin's PlatformEntry declares
+    ``own_policy_env`` (an enabled platform's lookup imports only that adapter, which the gateway
+    builds anyway), else None. A bundled platform with NO entry (plugin disabled / failed to load)
+    fails CLOSED on the ``<NAME>_*`` names (allow-all: the one its manifest declares, e.g. QQ's
+    ``QQ_ALLOW_ALL_USERS``): its config can still enable it, and enabling the plugin later re-wires
+    the adapter into the live gateway without re-running the startup check."""
+    from gateway.platform_registry import platform_registry
+    entry = platform_registry.get(platform.value)
+    if entry is None and platform.value in Platform._scan_bundled_plugin_platforms()[0]:
+        prefix, declared = platform.value.upper(), []
+        with suppress(Exception):
+            from utils import fast_safe_load
+            manifest = Path(__file__).resolve().parent.parent / "plugins" / "platforms" / platform.value / "plugin.yaml"
+            data = fast_safe_load(manifest.read_text(encoding="utf-8-sig")) or {}
+            declared = [str(e.get("name", "")) for e in (*data.get("requires_env", ()), *data.get("optional_env", ()))
+                        if isinstance(e, dict) and str(e.get("name", "")).endswith("_ALLOW_ALL_USERS")]
+        allow_all = declared[0] if len(declared) == 1 else f"{prefix}_ALLOW_ALL_USERS"
+        return f"{prefix}_DM_POLICY", f"{prefix}_GROUP_POLICY", allow_all
+    if entry is None or entry.own_policy_env is None:
+        return None
+    return (*entry.own_policy_env, entry.allow_all_env)
+
+
 class GatewayStartupMixin:
     """Startup sequence, resume/restore and handoff methods for GatewayRunner."""
 
@@ -1014,7 +1039,7 @@ class GatewayStartupMixin:
     def _start_check_access_policy(self) -> bool:
         """Warn about missing allowlists; return True when startup must be refused."""
         from gateway.run import (
-            _OWN_POLICY_OPEN_ENV, _own_policy_open_startup_violation, _write_runtime_status_quiet
+            _own_policy_open_startup_violation, _write_runtime_status_quiet
         )
         # Plugin platforms declare their own allowed_users_env / allow_all_env.
         allowed_vars = list(self._BUILTIN_ALLOWED_USERS_VARS)
@@ -1046,9 +1071,7 @@ class GatewayStartupMixin:
         reason = _own_policy_open_startup_violation(self.config)
         if reason:
             platform_value = reason.split(":", 1)[0]
-            allow_all_env = next(
-                (env[2] for p, env in _OWN_POLICY_OPEN_ENV.items() if p.value == platform_value), None
-            )
+            allow_all_env = (_own_policy_envs(Platform(platform_value)) or (None, None, None))[2]
             logger.error(
                 "Refusing to start: %s has dm_policy/group_policy set to 'open' "
                 "but neither GATEWAY_ALLOW_ALL_USERS nor %s is enabled.", platform_value,

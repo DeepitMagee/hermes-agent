@@ -41,16 +41,6 @@ _ALLOWLIST_SUPPRESSES_PAIRING = frozenset({
 })
 _GROUP_USER_ENV = {Platform.TELEGRAM: "TELEGRAM_GROUP_ALLOWED_USERS"}
 _GROUP_CHAT_ENV = {Platform.TELEGRAM: "TELEGRAM_GROUP_ALLOWED_CHATS", Platform.QQBOT: "QQ_GROUP_ALLOWED_USERS"}
-_ALLOW_BOTS_ENV = {
-    # Bots admitted by {PLATFORM}_ALLOW_BOTS bypass the human allowlist (#4466). Checked before the
-    # no-user-id guard below: some platforms deliver bot/automation traffic with no user_id at all -- e.g.
-    # Slack Workflow Builder posts arrive as subtype=bot_message with user=None -- so deferring past the
-    # guard would reject them outright (the same reason the chat-scoped allowlist above runs early).
-    Platform.DISCORD: "DISCORD_ALLOW_BOTS",
-    Platform.FEISHU: "FEISHU_ALLOW_BOTS",
-    Platform.TELEGRAM: "TELEGRAM_ALLOW_BOTS",
-    Platform.SLACK: "SLACK_ALLOW_BOTS",
-}
 
 
 # Gate reads use the shared per-profile isolated reader (allowlist leak under multiplex, #72348).
@@ -566,11 +556,18 @@ class GatewayAuthorizationMixin:
                 adapter_group_allowed = self._adapter_extra_for_source(source).get("group_allowed_chats")
                 if adapter_group_allowed and _allows(_coerce_allow_set(adapter_group_allowed), source.chat_id):
                     return True
-        # Bots admitted by {PLATFORM}_ALLOW_BOTS (scoped env → the routed adapter's YAML ``allow_bots`` →
-        # none) bypass the human allowlist (Slack Workflow Builder posts arrive with user=None). The YAML
-        # rung is what a secondary profile has: its config is never bridged into the process env.
+        # Bots admitted by the platform's ``allow_bots_env`` (scoped env → the routed adapter's YAML
+        # ``allow_bots`` → none) bypass the human allowlist (#4466). Checked here, before the no-user-id
+        # guard: Slack Workflow Builder posts arrive as subtype=bot_message with user=None. The YAML rung
+        # is what a secondary profile has: its config is never bridged into the process env. No entry
+        # (plugin not loaded) = no bypass: fails closed.
         if getattr(source, "is_bot", False):
-            allow_bots_var = _ALLOW_BOTS_ENV.get(source.platform)
+            # Idempotent: the env name lives on the plugin's entry, so a runner that never ran the
+            # config passes (which discover) must still see it rather than silently deny.
+            with contextlib.suppress(Exception):
+                from hermes_cli.plugins import discover_plugins
+                discover_plugins()
+            allow_bots_var = getattr(_registry_entry(source.platform), "allow_bots_env", "")
             if allow_bots_var:
                 extra = {}
                 with contextlib.suppress(Exception):

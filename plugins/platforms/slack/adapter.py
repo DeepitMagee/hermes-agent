@@ -6921,7 +6921,6 @@ def register(ctx) -> None:
         required_env=["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"],
         install_hint="Run `hermes setup` to install Slack support.",
         setup_fn=interactive_setup,
-        # YAML→env bridge: config.yaml slack: keys → SLACK_* env vars read via os.getenv().
         # YAML→env config bridge — owns the translation of config.yaml slack: keys (require_mention,
         # strict_mention, ignore_other_user_mentions, thread_require_mention, allow_bots,
         # free_response_channels, reactions, disable_dms, allowed_channels, ignored_channels) into SLACK_*
@@ -6937,4 +6936,5 @@ def register(ctx) -> None:
         # Slack allows 40,000 chars; leave margin.
         max_message_length=39000,
         emoji="💼",
-        allow_update_command=True)
+        allow_update_command=True,
+        allow_bots_env="SLACK_ALLOW_BOTS")

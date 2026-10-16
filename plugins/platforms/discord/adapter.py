@@ -7388,7 +7388,6 @@ def register(ctx) -> None:
         required_env=["DISCORD_BOT_TOKEN"],
         install_hint="Run `hermes setup` to install Discord support.",
         setup_fn=interactive_setup,
-        # YAML→env bridge: ``discord:`` config keys → ``DISCORD_*`` env vars read via os.getenv().
         # YAML→env config bridge — owns the translation of ``config.yaml`` ``discord:`` keys
         # (require_mention, free_response_channels, auto_thread, free_response_auto_thread,
         # reactions, ignored_channels, allowed_channels, no_thread_channels, allow_mentions.*,
@@ -7398,6 +7397,7 @@ def register(ctx) -> None:
         apply_yaml_config_fn=_apply_yaml_config,
         allowed_users_env="DISCORD_ALLOWED_USERS",
         allow_all_env="DISCORD_ALLOW_ALL_USERS",
+        allow_bots_env="DISCORD_ALLOW_BOTS",
         cron_deliver_env_var="DISCORD_HOME_CHANNEL",
         # Out-of-process cron delivery via REST, else ``deliver=discord`` jobs fail with "No live adapter".
         standalone_sender_fn=_standalone_send,
