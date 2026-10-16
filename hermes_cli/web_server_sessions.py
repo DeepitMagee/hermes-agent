@@ -300,6 +300,9 @@ def _with_session_maintenance(profile, operation, *args):
         with exclusive_maintenance([home]):
             return operation(*args)
     except OwnershipConflict as exc:
+        # uvicorn runs at log_level=warning, so a handled 4xx leaves no server-side trace and the
+        # refusal reads as a UI bug (#138915). Bulk store maintenance has no owner verb: name it.
+        _log.warning('session write refused for %s: %s', home, exc)
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
