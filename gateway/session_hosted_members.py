@@ -7,7 +7,6 @@ profile-bound caller seats its own profile plus the profiles its entries name, a
 answers to one name. An entry that would break a rule is ignored and logged once, and only a new
 member naming it is refused, so one bad entry never takes the rest of the roster down.
 """
-from collections import Counter
 import logging
 from pathlib import Path
 
@@ -77,27 +76,25 @@ def refuse_unseatable(members, refused):
 
 
 def _served(authority):
-    """``(own name, name -> home, refused)`` over the profiles this process serves, by the names
-    the registry reserved them under. A name two homes answer to is refused, never bound."""
-    from gateway.session_authorities import served_profile_name
-    registry = getattr(getattr(authority, 'runner', None), 'session_authorities', None)
-    pairs = registry.named_serving() if registry is not None else []
-    own = next((name for name, served in pairs if served is authority), None)
+    """``(own name, name -> home, refused)`` over the local bots this process serves
+    (``session_authorities.local_bots``). A bot its clients cannot address by name is refused,
+    never bound; a retiring one is not seated in a new group."""
+    from gateway.session_authorities import local_bots, served_profile_name
+    bots = local_bots(getattr(authority, 'runner', None))
+    own = next((bot.name for bot in bots if bot.authority is authority), None)
     if own is None:
-        # A bare authority (no registry), or a retiring one: it still owns its own rooms.
+        # A bare authority (no registry): it still owns its own rooms.
         own = served_profile_name(authority.profile_id)
-        pairs = [(own, authority), *pairs]
-    counts = Counter(name for name, _ in pairs)
     served, refused = {}, {}
-    for name, served_authority in pairs:
-        if counts[name] > 1:
-            refused[name] = ('invalid_params', 'members', 'two served homes answer to that name')
-        elif name != served_profile_name(served_authority.profile_id):
-            # A linked profiles/<name> resolves outside profiles/; the member transport names a
-            # destination by its resolved home, so every turn would fail on the name.
-            refused[name] = ('invalid_params', 'members', 'a linked profile home is not supported in groups yet')
+    for bot in bots:
+        if bot.problem is not None:
+            refused[bot.name] = ('invalid_params', 'members', bot.problem.replace(' yet', ' in groups yet'))
+        elif bot.retiring and bot.authority is not authority:
+            continue
         else:
-            served[name] = Path(served_authority.profile_id)
+            served[bot.name] = bot.home
+    if own not in refused:
+        served.setdefault(own, Path(authority.profile_id))
     return own, served, refused
 
 

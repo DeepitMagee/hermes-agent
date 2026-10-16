@@ -207,3 +207,21 @@ async def test_a_row_whose_name_routes_elsewhere_carries_no_bot_chat(fleet):
     row, = [row for row in result['profiles'] if row['path'] == str(fleet.homes['delta'])]
     assert row['name'] == 'default'
     assert not {'canonical_session', 'last_session'} & set(row), row
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('fleet', [('delta',)], indirect=True)
+async def test_the_roster_and_group_seating_read_one_set_of_local_bots(fleet):
+    """RT-24 and HR-3 ask the same question, "which bots are local here": both read
+    ``session_authorities.local_bots``. The roster reads a bot's chats only where group seating
+    would seat it by name; a linked home is flagged for both."""
+    from gateway.session_authorities import authority_for_home, local_bots
+    from gateway.session_hosted_members import member_roster
+    bots = {bot.name: bot for bot in local_bots(fleet.runner)}
+    assert set(bots) == {'default', 'alpha', 'beta', 'gamma', 'delta'}
+    assert bots['delta'].problem and not any(bots[n].problem for n in ('default', 'alpha', 'beta', 'gamma'))
+    homes, refused = member_roster(authority_for_home(fleet.runner, fleet.homes['default']))
+    assert set(homes) == {name for name, bot in bots.items() if bot.problem is None}
+    assert set(refused) == {'delta'}
+    rows = (await fleet.call(fleet.connect('default', scope='host'), 'profiles.list'))['profiles']
+    assert {row['path'] for row in rows} >= {str(bot.home) for bot in bots.values()}

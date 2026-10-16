@@ -277,21 +277,23 @@ _DEGRADED = weakref.WeakSet()
 
 
 def _roster_siblings(connection, params):
-    """The other profiles this process serves, as ``[(authority, reader)]``, snapshotted on the owner
-    loop, where serve and unserve mutate the registry; an unbuilt slot is skipped. ``reader`` is the
-    principal that row's session fields are read as, or None for a metadata-only row: only a
-    host-scoped socket routes session verbs to a sibling (``AuthorityConnection._sibling_for``). It
-    carries this socket's subject and capabilities, which is what the routed connection would carry;
-    none is built, so no poll (routed or not) adds connections."""
+    """The other local bots this process serves (``session_authorities.local_bots``, the set group
+    seating uses too), as ``[(bot, reader)]``, snapshotted on the owner loop, where serve and
+    unserve mutate the registry; an unbuilt slot is skipped. ``reader`` is the principal that row's
+    session fields are read as, or None for a metadata-only row: only a host-scoped socket routes
+    session verbs to a sibling (``AuthorityConnection._sibling_for``), and only a bot addressable
+    by its own name (no ``problem``) is the one a click on its row opens. It carries this socket's
+    subject and capabilities, which is what the routed connection would carry; none is built, so
+    no poll (routed or not) adds connections."""
+    from gateway.session_authorities import local_bots
     from gateway.session_contract import Principal
     authority, actor = connection.authority, connection.actor
-    registry = getattr(getattr(authority, 'runner', None), 'session_authorities', None)
-    if registry is None:
+    if getattr(getattr(authority, 'runner', None), 'session_authorities', None) is None:
         return []
     readable = connection.host_scoped and params.get('include_sessions', True) is True
-    return [(sibling, Principal(actor.subject, sibling.profile_id, actor.capabilities, actor.transport_id)
-             if readable else None)
-            for sibling in list(registry) if sibling is not None and sibling is not authority]
+    return [(bot, Principal(actor.subject, bot.authority.profile_id, actor.capabilities, actor.transport_id)
+             if readable and bot.problem is None else None)
+            for bot in local_bots(authority.runner) if bot.authority is not authority]
 
 
 def _bot_sessions(authority, actor):
@@ -370,7 +372,7 @@ def _sibling_sessions(authority, reader):
 def _profiles(authority, actor, home, params, siblings=()):
     """The Bots roster: this profile's row, then every profile it can name. ``siblings`` is
     ``_roster_siblings``' snapshot; a sibling with a reader carries the same session fields."""
-    from hermes_cli.profiles import _profile_info, profile_matches_home
+    from hermes_cli.profiles import _profile_info
     import hermes_yaml as yaml
     include_sessions = params.get('include_sessions', True)
     if type(include_sessions) is not bool:
@@ -420,13 +422,12 @@ def _profiles(authority, actor, home, params, siblings=()):
 
     # Sibling profiles this process multiplexes: the roster lists them with the same
     # standing as a hosted-room destination, and the client routes their sessions by name.
-    for sibling, reader in siblings:
-        configured, target = served_profile_name(Path(sibling.profile_id)), Path(sibling.profile_id)
-        # A row's fields come from the authority a click on that row opens: the client routes by
-        # this name. A linked ``profiles/<name>`` resolves outside ``profiles/`` and reads as
-        # ``default`` here, which routes to the launch profile, so its row stays metadata-only.
-        reach = (sibling, reader) if reader is not None and profile_matches_home(configured, target) else None
-        discovered(configured, target, reach)
+    for bot, reader in siblings:
+        # The row keeps the name its home resolves to (the client routes by it); a bot that name
+        # does not reach (a linked ``profiles/<name>`` reads as ``default``) has no reader, so its
+        # row stays metadata-only.
+        discovered(served_profile_name(bot.home), bot.home,
+                   (bot.authority, reader) if reader is not None else None)
     service = getattr(authority, 'hosted_room_service', None)
     if service is not None:
         for configured, target in service.profile_homes().items():
