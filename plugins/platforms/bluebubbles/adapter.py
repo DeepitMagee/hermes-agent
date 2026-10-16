@@ -700,6 +700,7 @@ _PLATFORM_HINT = (
 
 def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
+    from . import gateway_env  # env -> GatewayConfig bridge (gateway.config_env)
     ctx.register_platform(
         name="bluebubbles", label="BlueBubbles (iMessage)", adapter_factory=BlueBubblesAdapter,
         dashboard_description="Use Hermes through iMessage via a BlueBubbles server.",
@@ -717,4 +718,6 @@ def register(ctx) -> None:
         max_message_length=0, pii_safe=True, emoji="💬", allow_update_command=True,
         platform_hint=_PLATFORM_HINT,
         display_tier="low",
+        env_overrides=gateway_env.ENV_OVERRIDES,
+        env_enable_credentials=gateway_env.ENV_ENABLE_CREDENTIALS,
     )

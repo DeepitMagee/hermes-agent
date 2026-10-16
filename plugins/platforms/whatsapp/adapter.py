@@ -1247,6 +1247,7 @@ _SEND_JID_RE = re.compile(r"^\s*[\w-]+@(?:g\.us|s\.whatsapp\.net|lid|broadcast|n
 
 
 def register(ctx) -> None:
+    from . import gateway_env  # env -> GatewayConfig bridge (gateway.config_env)
     ctx.register_platform(
         target_ref_syntax_fn=regex_stripped_parser(_SEND_JID_RE),
         # Media goes through Baileys /send-media; ``mentions`` force the standalone route too.
@@ -1268,4 +1269,6 @@ def register(ctx) -> None:
         platform_hint=_PLATFORM_HINT,
         # Baileys bridge supports /edit.
         display_tier="medium",
+        env_overrides=gateway_env.ENV_OVERRIDES,
+        env_enable_credentials=gateway_env.ENV_ENABLE_CREDENTIALS,
     )

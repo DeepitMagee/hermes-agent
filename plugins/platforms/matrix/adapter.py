@@ -3259,6 +3259,7 @@ def register(ctx) -> None:
     from plugins.platforms.matrix.adapter_hint import PLATFORM_HINT
     from plugins.platforms.matrix.send_targets import SEND_ENTRY_KWARGS
     from .dashboard_card import DASHBOARD_CARD
+    from . import gateway_env  # env -> GatewayConfig bridge (gateway.config_env)
     ctx.register_platform(
         **SEND_ENTRY_KWARGS,  # send_message target syntax + routing
         name="matrix", label="Matrix", adapter_factory=MatrixAdapter, check_fn=matrix_deps_present,
@@ -3271,4 +3272,6 @@ def register(ctx) -> None:
         allow_update_command=True,
         platform_hint=PLATFORM_HINT,
         display_tier="medium",
+        env_overrides=gateway_env.ENV_OVERRIDES,
+        env_enable_credentials=gateway_env.ENV_ENABLE_CREDENTIALS,
     )

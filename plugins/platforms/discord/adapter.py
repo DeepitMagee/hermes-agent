@@ -7373,6 +7373,7 @@ def register(ctx) -> None:
     from plugins.platforms.discord.onboarding import interactive_setup
 
     from .dashboard_card import DASHBOARD_CARD
+    from . import gateway_env  # env -> GatewayConfig bridge (gateway.config_env)
     ctx.register_platform(
         **SEND_ENTRY_KWARGS,  # send_message target syntax + routing
         name="discord",
@@ -7405,4 +7406,6 @@ def register(ctx) -> None:
         display_tier="high",
         # "-# " subtext reads as metadata.
         display_overrides={"reasoning_style": "subtext"},
+        env_overrides=gateway_env.ENV_OVERRIDES,
+        env_enable_credentials=gateway_env.ENV_ENABLE_CREDENTIALS,
     )

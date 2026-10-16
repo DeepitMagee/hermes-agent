@@ -726,6 +726,7 @@ _PLATFORM_HINT = (
 
 def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
+    from . import gateway_env  # env -> GatewayConfig bridge (gateway.config_env)
     ctx.register_platform(
         name="mattermost", label="Mattermost", adapter_factory=MattermostAdapter,
         dashboard_description="Connect Hermes to Mattermost channels and direct messages.",
@@ -741,4 +742,6 @@ def register(ctx) -> None:
         max_message_length=MAX_POST_LENGTH, emoji="💬", allow_update_command=True,
         platform_hint=_PLATFORM_HINT,
         display_tier="medium",
+        env_overrides=gateway_env.ENV_OVERRIDES,
+        env_enable_credentials=gateway_env.ENV_ENABLE_CREDENTIALS,
     )

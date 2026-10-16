@@ -51,6 +51,7 @@ def _parse_send_target(ref):
 
 def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
+    from . import gateway_env  # env -> GatewayConfig bridge (gateway.config_env)
     ctx.register_platform(
         target_ref_syntax_fn=_parse_send_target,
         # Attachments ride the JSON-RPC param on the final chunk.
@@ -72,4 +73,6 @@ def register(ctx) -> None:
         emoji="📡", pii_safe=True, allow_update_command=True,
         platform_hint=_PLATFORM_HINT,
         display_tier="low",
+        env_overrides=gateway_env.ENV_OVERRIDES,
+        env_enable_credentials=gateway_env.ENV_ENABLE_CREDENTIALS,
     )

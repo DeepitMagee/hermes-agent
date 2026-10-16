@@ -1011,6 +1011,7 @@ _SEND_TARGET_RE = re.compile(r"^\s*[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,
 
 def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
+    from . import gateway_env  # env -> GatewayConfig bridge (gateway.config_env)
     ctx.register_platform(
         target_ref_syntax_fn=regex_stripped_parser(_SEND_TARGET_RE),
         standalone_send=StandaloneSendPolicy(text_direct=True),
@@ -1025,4 +1026,6 @@ def register(ctx) -> None:
         max_message_length=50_000, pii_safe=True, emoji="📧", allow_update_command=True,
         platform_hint=_PLATFORM_HINT,
         display_tier="minimal",
+        env_overrides=gateway_env.ENV_OVERRIDES,
+        env_enable_credentials=gateway_env.ENV_ENABLE_CREDENTIALS,
     )

@@ -1104,6 +1104,7 @@ def register(ctx) -> None:
     ``whatsapp_cloud_unconfigured`` fatal error (same outcome as the former core wiring). No
     ``standalone_sender_fn`` / ``max_message_length``: out-of-process ``send_message`` had no
     WhatsApp Cloud sender in core either, and ``send()`` chunks itself."""
+    from . import gateway_env  # env -> GatewayConfig bridge (gateway.config_env)
     ctx.register_platform(
         name="whatsapp_cloud", label="WhatsApp Business (Cloud)", adapter_factory=WhatsAppCloudAdapter,
         dashboard_label="WhatsApp Cloud API",
@@ -1118,4 +1119,6 @@ def register(ctx) -> None:
         platform_hint=_PLATFORM_HINT,
         # Adapter lacks edit_message; promote once it lands.
         display_tier="low",
+        env_overrides=gateway_env.ENV_OVERRIDES,
+        env_enable_credentials=gateway_env.ENV_ENABLE_CREDENTIALS,
     )

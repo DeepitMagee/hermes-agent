@@ -160,6 +160,15 @@ class PlatformEntry:
     # ``{ENV_KEY: (accepts(value) -> bool, 400 detail)}``: the dashboard PUT rejects a non-empty value
     # the predicate refuses, catching credentials pasted into the wrong field.
     env_value_rules: dict = field(default_factory=dict)
+    # --- env ---
+    # Ordered ``step(GatewayConfig) -> None`` env->config bridge run by ``_apply_env_overrides`` for a
+    # platform with activation evidence (``gateway.platform_env.EnvCred`` / ``home_step`` /
+    # ``reply_mode_step``); () = none. Unlike ``env_enablement_fn`` it runs whether or not deps are
+    # importable and may set token / home channel / reply mode or force-disable.
+    env_overrides: tuple = ()
+    # Env names whose presence drives that enable, cited by the explicit-disable WARNING and used by
+    # ``hermes_cli.profile_channels`` as the platform's credential set; () = none declared.
+    env_enable_credentials: tuple = ()
 
 
 def core_ships_platform(name: str) -> bool:

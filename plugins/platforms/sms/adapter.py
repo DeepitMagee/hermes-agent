@@ -339,6 +339,7 @@ _PLATFORM_HINT = (
 
 def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
+    from . import gateway_env  # env -> GatewayConfig bridge (gateway.config_env)
     ctx.register_platform(
         standalone_send=StandaloneSendPolicy(text_direct=True),
         name="sms", label="SMS (Twilio)", adapter_factory=SmsAdapter,
@@ -354,4 +355,6 @@ def register(ctx) -> None:
         emoji="📱", allow_update_command=True,
         platform_hint=_PLATFORM_HINT,
         display_tier="minimal",
+        env_overrides=gateway_env.ENV_OVERRIDES,
+        env_enable_credentials=gateway_env.ENV_ENABLE_CREDENTIALS,
     )

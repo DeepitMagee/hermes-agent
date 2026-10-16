@@ -6913,6 +6913,7 @@ def register(ctx) -> None:
     from plugins.platforms.slack.adapter_hint import PLATFORM_HINT
     from plugins.platforms.slack.send_targets import SEND_ENTRY_KWARGS
     from .dashboard_card import DASHBOARD_CARD
+    from . import gateway_env  # env -> GatewayConfig bridge (gateway.config_env)
     ctx.register_platform(
         **SEND_ENTRY_KWARGS,  # send_message target syntax + routing
         name="slack",
@@ -6946,4 +6947,6 @@ def register(ctx) -> None:
         display_tier="medium",
         # Bolt posts cannot be edited like CLI; "new"/"all" spam permanent lines.
         display_overrides={"tool_progress": "off", "long_running_notifications": False, "busy_ack_detail": False},
+        env_overrides=gateway_env.ENV_OVERRIDES,
+        env_enable_credentials=gateway_env.ENV_ENABLE_CREDENTIALS,
     )
