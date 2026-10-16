@@ -77,8 +77,8 @@ def _slash_command(text):
 
     Only a registered command (or alias) is a command: ``/etc/hosts is wrong`` or ``/tmp/x``
     (a path, the same rule ``MessageEvent.get_command`` applies) and unknown ``/words`` are
-    prompt text for the model. A registered command this surface does not carry still raises
-    ``unsupported_command`` in ``slash_mutation`` rather than reaching the owner as text."""
+    prompt text for the model. A registered command is never sent as prompt text: it is answered
+    by a gateway verb or refused by name (``acp_adapter/gateway_commands.py``)."""
     stripped = text.lstrip()
     if not stripped.startswith('/'):
         return None
@@ -561,9 +561,13 @@ class GatewayACPAgent(acp.Agent):
         retained = self._unacked.pop(session_id, None)
         command = _slash_command(text) if not attachments else None
         if command is not None:
-            from acp_adapter.gateway_commands import run_command
+            from acp_adapter.gateway_commands import CommandRefused, run_command
             parts = text.strip().split(None, 1)
-            reply, text = await run_command(self, session_id, command, parts[1].strip() if len(parts) > 1 else '')
+            try:
+                reply, text = await run_command(self, session_id, command, parts[1].strip() if len(parts) > 1 else '')
+            except CommandRefused as exc:
+                # A named refusal is the command's answer, shown to the user; never a failed prompt.
+                reply = str(exc)
             if reply is not None:
                 if self._conn:
                     await self._conn.session_update(session_id=held_id, update=acp.update_agent_message_text(reply + '\n'))

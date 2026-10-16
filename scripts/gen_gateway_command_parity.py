@@ -4,7 +4,7 @@
 For every ``COMMAND_REGISTRY`` command it records what each local client does with it on the
 shared gateway -- the classic CLI (main's ``HermesCLI`` dispatch table, ``cli.py``), Ink
 (``ui-tui/src/app/slash/commands/*.ts``), Desktop (``apps/desktop/src/lib/desktop-slash-commands.ts``
-+ the registry's ``desktop=`` dump), ACP (``acp_adapter`` -> ``slash_mutation``) -- and the
++ the registry's ``desktop=`` dump), ACP (``acp_adapter/gateway_commands.py``) -- and the
 gateway's own ``slash.exec`` verdict for a local session (``gateway/session_commands.py``).
 Every column is derived from source, so a verdict that changes without a regenerated table
 fails ``tests/hermes_cli/test_gateway_command_parity.py``. ``--check`` writes nothing and exits 1
@@ -95,14 +95,24 @@ def classic_cell(cmd):
     return f"HermesCLI.{entry[0]}"
 
 
+# Commands ACP answers with its own canonical verb (``acp_adapter/gateway_commands.py``); every
+# other registry command goes to the owner's ``slash.exec`` and shows its refusal as the reply.
+ACP_ROUTES = {"branch": "ACP fork_session", "title": "session.mutate rename (bare: slash.exec)",
+              "undo": "session.mutate rewind", "retry": "session.mutate rewind + resubmit",
+              "new": "session.mutate reset", "clear": "session.mutate reset", "help": "local",
+              "tools": "session.info", "steer": "session.steer", "queue": "prompt.submit"}
+
+
 def acp_cell(name, gateway):
     from hermes_cli.gateway_client import GatewayClientError
     from hermes_cli.gateway_mutations import slash_mutation
+    if name in ACP_ROUTES:
+        return ACP_ROUTES[name]
     try:
         operation, _ = slash_mutation("/" + name, "x" if name == "model" else "")
     except GatewayClientError:
-        return "refused"
-    return "ACP fork_session" if operation == "branch" else f"session.mutate {operation}"
+        return "slash.exec" if gateway != "refused" else "slash.exec: refused"
+    return f"session.mutate {operation}"
 
 
 def _ink_commands():

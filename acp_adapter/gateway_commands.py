@@ -3,7 +3,11 @@
 Main served these in-process (``acp_adapter/commands.py``). The reports are the owner's own
 ``slash.exec`` reads, ``/model``, ``/compress`` and ``/reset`` the retained ``session.mutate``
 controls, ``/steer`` the owner's ``session.steer``; ``/queue`` and an idle ``/steer`` become the
-next prompt, which the session's FIFO runs after any turn in flight.
+next prompt, which the session's FIFO runs after any turn in flight. ``/title <name>`` is the
+``rename`` mutation and ``/undo`` / ``/retry`` the ``rewind`` one, as in the classic transport
+client (``hermes_cli/gateway_chat_commands.py``). Every other registry command goes to the owner's
+``slash.exec`` like there: it runs what it serves for this session and refuses the rest, and that
+refusal reaches the editor as a reply naming the command, never a failed prompt.
 """
 from __future__ import annotations
 
@@ -11,19 +15,23 @@ from hermes_cli.gateway_client import GatewayClientError, GatewayRPCError
 
 # Reports the owner answers for a local session (``gateway/session_commands.py::_READ_COMMANDS``).
 _READS = frozenset({'context', 'usage', 'status', 'version'})
-_MUTATIONS = frozenset({'model', 'compress', 'new', 'branch'})
+# ``/clear`` is main's "new session + clear screen"; here it is ``/new``'s reset of this session.
+_MUTATIONS = frozenset({'model', 'compress', 'new', 'clear', 'branch'})
 _PROMPTS = frozenset({'steer', 'queue'})
-COMMANDS = _READS | _MUTATIONS | _PROMPTS | {'help', 'tools'}
+_REWINDS = frozenset({'undo', 'retry'})
+COMMANDS = _READS | _MUTATIONS | _PROMPTS | _REWINDS | {'help', 'tools', 'title'}
+
+
+class CommandRefused(GatewayClientError):
+    """A refusal the editor shows as the command's reply (the prompt itself ends normally)."""
 
 
 async def run_command(agent, session_id, command, arg):
     """``(reply, None)`` for a command answered here, or ``(None, text)`` when ``text`` is to be
-    submitted as the prompt. Unsupported commands are refused before any gateway call."""
+    submitted as the prompt. A refusal raises ``CommandRefused`` (or the owner's RPC error)."""
     from acp_adapter.gateway_session_meta import help_text
-    if command not in COMMANDS:
-        raise GatewayClientError('unsupported_command')
     if command == 'branch':
-        raise GatewayClientError('use_acp_fork_session')
+        raise CommandRefused("/branch: use your editor's fork session action (ACP session/fork)")
     if command == 'help':
         return help_text(), None
     if command in _PROMPTS:
@@ -32,13 +40,73 @@ async def run_command(agent, session_id, command, arg):
         steered = await _steer(agent, session_id, arg) if command == 'steer' else None
         return (steered, None) if steered else (None, arg)
     client = await agent._client()
-    if command in _READS:
-        result = await client.rpc('slash.exec', session_id=session_id, command=f'/{command} {arg}'.strip())
-        return str(result.get('output') or result.get('notice') or ''), None
+    if command not in COMMANDS or command in _READS or (command == 'title' and not arg):
+        return await _forward(agent, client, session_id, command, arg)
+    if command == 'title':
+        return await _rename(agent, client, session_id, arg), None
+    if command in _REWINDS:
+        return await _rewind(agent, client, session_id, command, arg)
     if command == 'tools' or (command == 'model' and not arg):
         info = await client.rpc('session.info', session_id=session_id)
         return (_tools_text(info) if command == 'tools' else _model_text('Current model', info)), None
     return await _mutate(agent, client, session_id, command, arg), None
+
+
+async def _forward(agent, client, session_id, command, arg):
+    """The owner's ``slash.exec`` answer: its report, a turn to submit (a skill body or the turn a
+    command built, after its notice), or the shared refusal for a command it does not serve."""
+    import acp
+    from hermes_cli.gateway_chat_commands import refusal
+    try:
+        reply = await client.rpc('slash.exec', session_id=session_id, command=f'/{command} {arg}'.strip())
+    except GatewayRPCError as exc:
+        if str(exc) != 'unsupported_command':
+            raise
+        raise CommandRefused(refusal(command)) from exc
+    if reply.get('type') in ('skill', 'send'):
+        if reply.get('notice') and agent._conn:
+            await agent._conn.session_update(session_id=agent._editor_id(session_id),
+                                             update=acp.update_agent_message_text(reply['notice'] + '\n'))
+        return None, reply['message']
+    return str(reply.get('output') or reply.get('notice') or f'/{command}: no output'), None
+
+
+async def _rename(agent, client, session_id, title):
+    payload = {'title': title}
+    result = await agent._mutations.apply(client, session_id, 'rename', payload)
+    agent._mutations.acknowledge(session_id, 'rename', payload)
+    return f"Session title set: {result.get('title') or title}"
+
+
+async def _rewind(agent, client, session_id, command, arg):
+    """``/undo [N]`` reports the removed message (an editor has no composer to put it back in);
+    ``/retry`` resubmits the last user turn's lossless text as this prompt."""
+    from agent.i18n import t
+    from hermes_cli.gateway_chat_commands import _rewind_to
+    retry = command == 'retry'
+    if not retry and arg and not (arg.isdigit() and int(arg) > 0):
+        raise CommandRefused('Usage: /undo [N]')
+    turns = 1 if retry else int(arg or 1)
+    payload = _rewind_to(turns, retry=retry)
+    result = await agent._mutations.apply(client, session_id, 'rewind', payload)
+    agent._mutations.acknowledge(session_id, 'rewind', payload)
+    if result.get('status') == 'nothing' or not result.get('rewound_count'):
+        return t('cli.session.retry_no_user_message' if retry else 'cli.session.undo_no_user_message'), None
+    agent._snapshots[session_id] = await client.rpc('session.resume', session_id=session_id)
+    content = (result.get('target_message') or {}).get('content')
+    if retry:
+        from agent.context_compressor import retryable_user_text
+        try:
+            text = retryable_user_text(content)
+        except ValueError as exc:
+            raise CommandRefused(f'/retry: {exc}') from exc
+        if not text.strip():
+            return t('cli.session.retry_no_user_message'), None
+        return None, text
+    removed = content if isinstance(content, str) else ''
+    count = result['rewound_count']
+    return (f"Undid {turns} turn{'s' if turns != 1 else ''} ({count} message(s)).\n"
+            + (f"Removed message: {removed}" if removed else '')).rstrip(), None
 
 
 async def _steer(agent, session_id, text):
@@ -70,7 +138,7 @@ async def _steer(agent, session_id, text):
 
 async def _mutate(agent, client, session_id, command, arg):
     from hermes_cli.gateway_mutations import slash_mutation
-    operation, payload = ('reset', {}) if command == 'new' else slash_mutation('/' + command, arg)
+    operation, payload = ('reset', {}) if command in {'new', 'clear'} else slash_mutation('/' + command, arg)
     confirm = agent._model_confirmer(session_id) if operation == 'model' else None
     result = await agent._mutations.apply(client, session_id, operation, payload, confirm=confirm)
     status = result.get('status')
