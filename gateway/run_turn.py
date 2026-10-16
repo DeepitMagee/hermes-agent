@@ -1130,19 +1130,6 @@ class GatewayTurnMixin(GatewayTurnPrepareMixin, GatewayTurnHygieneMixin, Gateway
         "interim_assistant_messages_enabled", "needs_progress_queue", "_native_slack_task_cards",
     )
 
-    def _voice_ack_guild_for(self, source: SessionSource) -> Optional[int]:
-        """Guild whose voice call is bound to *source*'s text channel on the bot that ANSWERS it.
-        Under multiplexing a secondary profile's call lives on its own adapter, never the default's
-        (#139345): reading ``self.adapters`` would miss its call or borrow the primary bot's."""
-        if source.platform != Platform.DISCORD:
-            return None
-        adapter = self._delivery_adapter_for(source)
-        bound = getattr(adapter, "_voice_text_channels", None)
-        if not (isinstance(bound, dict) and hasattr(adapter, "voice_mixer_active")):
-            return None
-        return next((gid for gid, channel in bound.items()
-                     if str(channel) == str(source.chat_id) and adapter.voice_mixer_active(gid)), None)
-
     def _run_agent_build_turn_context(
         self, disp: GatewayRunner._RunAgentDisplay, AIAgent: Any, *, message: str, source: SessionSource,
         session_key: Optional[str], run_generation: Optional[int], **turn_params,
