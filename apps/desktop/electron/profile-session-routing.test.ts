@@ -25,11 +25,14 @@ import {
   tagRemoteSessionRows
 } from './profile-session-routing'
 
-test('remote session routing includes the mutation snapshot read and no other child route', () => {
+test('remote session routing includes the mutation snapshot and session reads, no other child route', () => {
   assert.equal(isRemoteSessionRequestPath('/api/sessions/stored-session'), true)
   assert.equal(isRemoteSessionRequestPath('/api/sessions/stored-session/messages'), true)
   assert.equal(isRemoteSessionRequestPath('/api/sessions/stored-session/mutation-snapshot'), true)
-  assert.equal(isRemoteSessionRequestPath('/api/sessions/stored-session/timeline'), false)
+  assert.equal(isRemoteSessionRequestPath('/api/sessions/stored-session/timeline'), true)
+  assert.equal(isRemoteSessionRequestPath('/api/sessions/stored-session/messages/around'), true)
+  assert.equal(isRemoteSessionRequestPath('/api/sessions/stored-session/export'), false)
+  assert.equal(isRemoteSessionRequestPath('/api/sessions/stored-session/messages/extra'), false)
   assert.equal(isRemoteSessionRequestPath('/api/sessions/stored-session/mutation-snapshot/extra'), false)
 })
 

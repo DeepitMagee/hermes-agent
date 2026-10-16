@@ -51,9 +51,11 @@ export function isAllProfilesSessionListRequest(method: string | undefined, path
   )
 }
 
-/** Paths whose session data must follow the legacy remote owner route. */
+/** Paths whose session data must follow the legacy remote owner route. The fenced
+ *  edit reads `/mutation-snapshot` before its PATCH; both must reach the backend that
+ *  owns the row, or the revision fence compares against the wrong store (#138905). */
 export function isRemoteSessionRequestPath(pathname: string): boolean {
-  return /^\/api\/sessions\/[^/]+(?:\/(?:messages|mutation-snapshot))?$/.test(pathname)
+  return /^\/api\/sessions\/[^/]+(?:\/(?:messages|messages\/around|mutation-snapshot|timeline))?$/.test(pathname)
 }
 
 function rowsOf(data: unknown): unknown[] {
