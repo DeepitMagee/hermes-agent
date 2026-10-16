@@ -145,6 +145,9 @@ async def _mutate(agent, client, session_id, command, arg):
     if status == 'cancelled':
         from agent.i18n import t
         reply = t('cli.model.switch_cancelled')
+    elif status == 'deferred':
+        # A pick during a running turn: stored for the next turn, nothing changed yet.
+        reply = deferred_pick_text(result)
     elif status == 'preview':
         # Read-only report: nothing changed, so the editor's snapshot is still current.
         reply = '\n'.join(result['lines'])
@@ -174,6 +177,19 @@ async def _refresh_context(agent, client, session_id, operation):
         stats = {**stats, 'context_length': (agent._usage.get(session_id) or {}).get('context_length'),
                  'context_tokens': estimate_request_tokens_rough(messages) if operation == 'compress' else 0}
     await agent._project_usage(session_id, agent._editor_id(session_id), stats)
+
+
+def deferred_pick_text(result):
+    return f"{result.get('model') or 'The picked model'} applies from your next message."
+
+
+def refused_pick_text(update):
+    """The owner's ``session.updated`` for a deferred pick it dropped at the turn boundary."""
+    current = update.get('model') or 'the current model'
+    if update.get('provider'):
+        current += f" ({update['provider']})"
+    return (f"Model switch to {update.get('target_model') or 'the picked model'} was not applied "
+            f"({update.get('reason') or 'refused'}); still using {current}.")
 
 
 def _summary_text(result):

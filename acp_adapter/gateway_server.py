@@ -486,6 +486,11 @@ class GatewayACPAgent(acp.Agent):
             raise GatewayClientError('model_switch_cancelled')
         self._snapshots[session_id] = await client.rpc('session.resume', session_id=session_id)
         self._mutations.acknowledge(session_id, 'model', payload)
+        if result.get('status') == 'deferred' and self._conn:
+            # A pick during a running turn lands for the next one (#139604); say so, as Desktop does.
+            from acp_adapter.gateway_commands import deferred_pick_text
+            await self._conn.session_update(session_id=self._editor_id(session_id),
+                                            update=acp.update_agent_message_text(deferred_pick_text(result) + "\n"))
         return SetSessionModelResponse()
 
     def _model_confirmer(self, session_id):
@@ -800,6 +805,13 @@ class GatewayACPAgent(acp.Agent):
             if self._conn:
                 await self._conn.session_update(session_id=editor_id, update=acp.update_agent_message_text(
                     _tools_changed_notice(payload)))
+            return
+        if kind == "session.updated" and payload.get("operation") == "model" and payload.get("status") == "refused":
+            # A deferred pick that no longer resolved at the turn boundary: dropped, named here.
+            if self._conn:
+                from acp_adapter.gateway_commands import refused_pick_text
+                await self._conn.session_update(session_id=editor_id, update=acp.update_agent_message_text(
+                    refused_pick_text(payload) + "\n"))
             return
         if kind == "session.info" and sid in self._snapshots and "pending" in payload:
             async with self._changed:
