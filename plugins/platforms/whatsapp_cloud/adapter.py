@@ -40,6 +40,7 @@ except ImportError:
     httpx = None  # type: ignore[assignment]
 
 from gateway.config import Platform, PlatformConfig
+from gateway.platforms._shared import config_connected_extra
 from agent.i18n import t
 from gateway.platforms.base import BasePlatformAdapter, ExecApprovalPrompt, SendResult, transcode_to_ogg_opus
 from gateway.platforms.base_exec_approval import ea_header_text
@@ -1095,6 +1096,7 @@ def register(ctx) -> None:
     ctx.register_platform(
         name="whatsapp_cloud", label="WhatsApp Business (Cloud)", adapter_factory=WhatsAppCloudAdapter,
         check_fn=check_whatsapp_cloud_requirements, is_connected=_is_connected,
+        config_connected_fn=config_connected_extra("phone_number_id", "access_token"),
         required_env=["WHATSAPP_CLOUD_PHONE_NUMBER_ID", "WHATSAPP_CLOUD_ACCESS_TOKEN"],
         install_hint="aiohttp/httpx missing — reinstall hermes-agent", setup_fn=_interactive_setup,
         allowed_users_env="WHATSAPP_CLOUD_ALLOWED_USERS", allow_all_env="WHATSAPP_CLOUD_ALLOW_ALL_USERS",

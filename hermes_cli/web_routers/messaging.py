@@ -956,20 +956,16 @@ def _platform_authz_env_names(platform_id: str) -> tuple[str, str]:
     """``(allowed_users_env, allow_all_env)`` for a platform, honoring plugin registry
     entries. Empty strings mean "this platform has no per-user authorization surface"
     (webhook-style trusted inbound or unknown), so no posture is computed for it."""
-    from gateway.pairing import _PLATFORM_ALLOWLIST_ENV
+    allowed = allow_all = ""
+    with contextlib.suppress(Exception):
+        from gateway.platform_registry import platform_registry
 
-    allowed = _PLATFORM_ALLOWLIST_ENV.get(platform_id, "")
-    allow_all = allowed.replace("_ALLOWED_USERS", "_ALLOW_ALL_USERS")
-    if not allowed:
-        with contextlib.suppress(Exception):
-            from gateway.platform_registry import platform_registry
-
-            entry = platform_registry.get(platform_id)
-            if entry is not None:
-                if getattr(entry, "trusted_inbound", False) is True:
-                    return "", ""
-                allowed = getattr(entry, "allowed_users_env", "") or ""
-                allow_all = getattr(entry, "allow_all_env", "") or ""
+        entry = platform_registry.get(platform_id)
+        if entry is not None:
+            if getattr(entry, "trusted_inbound", False) is True:
+                return "", ""
+            allowed = getattr(entry, "allowed_users_env", "") or ""
+            allow_all = getattr(entry, "allow_all_env", "") or ""
     return allowed, allow_all
 
 

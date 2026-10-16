@@ -16,7 +16,6 @@ from typing import Optional
 
 from gateway.bot_loop_guard import BotLoopGuard
 from gateway.config import Platform
-from gateway.pairing import _PLATFORM_ALLOWLIST_ENV
 from gateway.session import SessionSource
 from gateway.whatsapp_identity import (
     expand_whatsapp_aliases as _expand_whatsapp_auth_aliases,
@@ -29,10 +28,17 @@ _TRUTHY = frozenset({"true", "1", "yes"})
 _BOT_LOOP_GUARD_INIT_LOCK = threading.Lock()
 logger = logging.getLogger(__name__)
 
-# Platform -> ``<PLATFORM>_ALLOWED_USERS`` / ``<PLATFORM>_ALLOW_ALL_USERS``. Shared with the pairing
-# store's allowlist mirror (single source of truth); plugin platforms are added per-call from the registry.
-_ALLOWED_USERS_ENV = {Platform(k): v for k, v in _PLATFORM_ALLOWLIST_ENV.items()}
-_ALLOW_ALL_ENV = {p: v.replace("_ALLOWED_USERS", "_ALLOW_ALL_USERS") for p, v in _ALLOWED_USERS_ENV.items()}
+# ``<PLATFORM>_ALLOWED_USERS`` / ``<PLATFORM>_ALLOW_ALL_USERS`` come from each platform's
+# ``PlatformEntry.allowed_users_env`` / ``allow_all_env`` (shared with the pairing allowlist mirror).
+# Platforms whose env allowlist turns the unauthorized-DM default from "pair" into "ignore". Names
+# only (the env var is still the plugin's): this is the historical set the allowlist-aware default
+# covered, so adding a platform here is a behaviour change (Yuanbao was never in it).
+_ALLOWLIST_SUPPRESSES_PAIRING = frozenset({
+    Platform.TELEGRAM, Platform.DISCORD, Platform.WHATSAPP, Platform.WHATSAPP_CLOUD, Platform.SLACK,
+    Platform.SIGNAL, Platform.EMAIL, Platform.SMS, Platform.MATTERMOST, Platform.MATRIX, Platform.DINGTALK,
+    Platform.FEISHU, Platform.WECOM, Platform.WECOM_CALLBACK, Platform.WEIXIN, Platform.BLUEBUBBLES,
+    Platform.QQBOT,
+})
 _GROUP_USER_ENV = {Platform.TELEGRAM: "TELEGRAM_GROUP_ALLOWED_USERS"}
 _GROUP_CHAT_ENV = {Platform.TELEGRAM: "TELEGRAM_GROUP_ALLOWED_CHATS", Platform.QQBOT: "QQ_GROUP_ALLOWED_USERS"}
 _ALLOW_BOTS_ENV = {
@@ -58,9 +64,13 @@ def _env_truthy(name: str) -> bool:
 
 
 def _registry_entry(platform):
-    """Platform-registry entry for a (plugin) platform, or None."""
+    """Platform-registry entry for a (plugin) platform, or None. Discovers first (idempotent): the
+    allowlist env names live only on the entry, so an undiscovered process must not read "no list"."""
     if platform is None:
         return None
+    with contextlib.suppress(Exception):
+        from hermes_cli.plugins import discover_plugins
+        discover_plugins()
     with contextlib.suppress(Exception):
         from gateway.platform_registry import platform_registry
 
@@ -652,13 +662,9 @@ class GatewayAuthorizationMixin:
         if not user_id:
             return False
 
-        platform_allow_env = _ALLOWED_USERS_ENV.get(source.platform, "")
-        platform_allow_all_var = _ALLOW_ALL_ENV.get(source.platform, "")
-        if source.platform not in _ALLOWED_USERS_ENV:
-            entry = _registry_entry(source.platform)
-            with contextlib.suppress(Exception):
-                platform_allow_env = getattr(entry, "allowed_users_env", "") or platform_allow_env
-                platform_allow_all_var = getattr(entry, "allow_all_env", "") or platform_allow_all_var
+        entry = _registry_entry(source.platform)
+        platform_allow_env = getattr(entry, "allowed_users_env", "") or ""
+        platform_allow_all_var = getattr(entry, "allow_all_env", "") or ""
         if platform_allow_all_var and _env_truthy(platform_allow_all_var):
             return True
         # Adapter-verified role auth (Discord DISCORD_ALLOWED_ROLES). ``is True``: no MagicMock pass.
@@ -740,8 +746,8 @@ class GatewayAuthorizationMixin:
                 return "pair"
             if dm_policy in {"allowlist", "disabled"}:
                 return "ignore"
-            # Historical: Yuanbao is absent from this allowlist-aware default.
-            env_key = "" if platform == Platform.YUANBAO else _ALLOWED_USERS_ENV.get(platform, "")
+            env_key = (getattr(_registry_entry(platform), "allowed_users_env", "") or ""
+                       if platform in _ALLOWLIST_SUPPRESSES_PAIRING else "")
             allowlist_keys = [env_key, _GROUP_USER_ENV.get(platform), _GROUP_CHAT_ENV.get(platform), *allowlist_keys]
         if any(key and _auth_env(key).strip() for key in allowlist_keys):
             return "ignore"

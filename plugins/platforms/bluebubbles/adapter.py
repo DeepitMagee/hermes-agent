@@ -18,6 +18,7 @@ import httpx
 
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms._shared import extra_or_secret as _extra_or_secret, get_scoped_secret as _get_scoped_secret
+from gateway.platforms._shared import config_connected_extra
 from gateway.platforms.base import (
     BasePlatformAdapter, SendResult,
     cache_image_from_bytes_async, cache_audio_from_bytes_async, cache_document_from_bytes_async,
@@ -689,6 +690,7 @@ def register(ctx) -> None:
     ctx.register_platform(
         name="bluebubbles", label="BlueBubbles (iMessage)", adapter_factory=BlueBubblesAdapter,
         check_fn=check_bluebubbles_requirements, is_connected=_is_connected,
+        config_connected_fn=config_connected_extra("server_url", "password"),
         required_env=["BLUEBUBBLES_SERVER_URL", "BLUEBUBBLES_PASSWORD"], install_hint=_INSTALL_HINT,
         setup_fn=interactive_setup,
         allowed_users_env="BLUEBUBBLES_ALLOWED_USERS", allow_all_env="BLUEBUBBLES_ALLOW_ALL_USERS",

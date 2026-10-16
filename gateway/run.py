@@ -1542,7 +1542,7 @@ def _collect_history_media_paths(agent_history: list[dict[str, Any]]) -> set:
     return paths
 
 def _home_target_env_var(platform_name: str) -> str:
-    """Home-target env var: built-in ``_HOME_TARGET_ENV_VARS``, plugin registry, then
+    """Home-target env var: the plugin's ``cron_deliver_env_var``, then
     ``<PLATFORM>_HOME_CHANNEL``."""
     from cron.scheduler_delivery import _resolve_home_env_var
     return _resolve_home_env_var(platform_name) or f"{platform_name.upper()}_HOME_CHANNEL"

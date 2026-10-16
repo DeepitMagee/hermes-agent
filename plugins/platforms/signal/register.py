@@ -4,6 +4,7 @@ import logging
 
 from gateway.config import PlatformConfig
 from gateway.platforms._shared import env_is_connected
+from gateway.platforms._shared import config_connected_extra
 
 # Absolute imports (see __init__.py): one canonical module per file.
 from plugins.platforms.signal.adapter import (
@@ -37,6 +38,7 @@ def register(ctx) -> None:
         name="signal", label="Signal", adapter_factory=SignalAdapter,
         check_fn=check_signal_requirements, validate_config=_validate_config,
         is_connected=_is_connected, required_env=["SIGNAL_HTTP_URL", "SIGNAL_ACCOUNT"],
+        config_connected_fn=config_connected_extra("http_url"),
         install_hint="Signal: runtime requirements not met", setup_fn=interactive_setup,
         allowed_users_env="SIGNAL_ALLOWED_USERS", allow_all_env="SIGNAL_ALLOW_ALL_USERS",
         cron_deliver_env_var="SIGNAL_HOME_CHANNEL",
