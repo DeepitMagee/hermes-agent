@@ -5,11 +5,14 @@ transactions. Local reset prepares its replacement in the receipt transaction;
 branch/compress/model still require their own prepared runtime publication.
 """
 import asyncio
+import logging
 from contextlib import nullcontext
 from functools import partial
 
 from hermes_state_mutation_guards import MUTATION_GUARD_REFUSALS
 from hermes_state_runtime import RuntimeStoreError, mutate_runtime_session
+
+logger = logging.getLogger(__name__)
 
 _METADATA = frozenset({'rename', 'archive', 'sidebar'})
 # Prepared off the commit like model, then published as a new frozen policy.
@@ -317,6 +320,16 @@ def retire_live_sessions(authority, session_ids):
     store = getattr(authority.runner, 'session_store', None)
     if store is not None:
         store.retire_runtime_sessions(session_ids)
+        # The delete transaction dropped routing rows in the owning store; a multiplexed
+        # secondary's routes live in the launch home's shared index, so drop them there too
+        # rather than wait for the next whole-index save (a crash in between left a route to
+        # a deleted session, #138826).
+        routing = getattr(store, '_routing_db', None)
+        if session_ids and routing is not None and routing.db_path != authority.db.db_path:
+            try:
+                routing._delete_routing_entries_for_sessions(set(session_ids))
+            except Exception:
+                logger.warning('could not drop shared routing rows for deleted sessions', exc_info=True)
     from gateway.session_policy import release_launch_secrets
     release_launch_secrets(authority, session_ids)
     from tools.async_delegation import allow_for_session

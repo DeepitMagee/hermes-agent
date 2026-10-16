@@ -49,20 +49,13 @@ async def test_delete_of_secondary_profile_session_does_not_409(tmp_path, monkey
         assert result.get('deleted_ids') == [ref.session_id]
         assert authority.db.get_session(ref.session_id) is None
         assert runner.session_store.lookup_by_session_id(ref.session_id) is None
-        # The retire clears the in-memory entry but not the launch store's durable row: the
-        # fence marker lives in the owner store, and the launch table is rewritten only by the
-        # next whole-index save. Pin both halves — a live path always republishes on its next
-        # save, while an offline CLI delete, with no live store, leaves its row behind for good.
+        # The secondary's routes live in the launch home's shared index: the delete drops its
+        # durable row there too, not only at the next whole-index save (a crash in between kept
+        # a messaging route to a deleted session).
         routing_db = runner.session_store._routing_db
-        seated = {r['session_key'] for r in routing_db._read_all(
-            'SELECT session_key FROM gateway_routing WHERE json_extract(entry_json, ?) = ?',
-            ('$.session_id', ref.session_id))}
-        assert 'agent:main:telegram:111' in seated
-        with runner.session_store._lock:
-            runner.session_store._save()
         assert not routing_db._read_all(
             'SELECT session_key FROM gateway_routing WHERE json_extract(entry_json, ?) = ?',
-            ('$.session_id', ref.session_id)), 'the next whole-index save republishes the retire'
+            ('$.session_id', ref.session_id))
     finally:
         for a in list(getattr(runner, 'session_authorities', None) or []):
             a.db.close()
