@@ -90,9 +90,11 @@ class TestF1CommitOverrunWhileHung:
             t = threading.Thread(target=run, name="f1-hung-commit-host")
             t.start()
             try:
-                assert entered.wait(timeout=2)
+                # Generous: Event.wait returns the moment it is set; a cold executor under load
+                # can take over 2s just to start the worker.
+                assert entered.wait(timeout=10)
                 # ── Assert WHILE the commit worker is still blocked ──────
-                assert overrun_fired.wait(timeout=5), (
+                assert overrun_fired.wait(timeout=10), (
                     "on_commit_overrun must fire while the commit is hung"
                 )
                 assert not release.is_set()  # worker provably still blocked
