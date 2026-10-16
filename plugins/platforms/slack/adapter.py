@@ -6905,14 +6905,15 @@ def _apply_yaml_config(yaml_cfg: dict, slack_cfg: dict) -> dict | None:
     return _apply_yaml_bridge(slack_cfg, _YAML_BRIDGE)
 
 
-
 _is_connected = _env_is_connected("SLACK_BOT_TOKEN")
 
 
 def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
     from plugins.platforms.slack.adapter_hint import PLATFORM_HINT
+    from plugins.platforms.slack.send_targets import SEND_ENTRY_KWARGS
     ctx.register_platform(
+        **SEND_ENTRY_KWARGS,  # send_message target syntax + routing
         name="slack",
         label="Slack",
         adapter_factory=SlackAdapter,

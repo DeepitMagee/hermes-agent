@@ -1891,7 +1891,6 @@ def _apply_yaml_config(yaml_cfg: dict, buzz_cfg: dict) -> Optional[dict]:
     return _apply_yaml_bridge(extra, _YAML_BRIDGE)
 
 
-
 def _env_enablement() -> Optional[dict]:
     """``env_enablement_fn``: seed ``PlatformConfig.extra`` from the owning profile's env so env-only setups
     show in gateway status; None if unconfigured. Reads go through the profile scope: a served secondary sees
@@ -1906,7 +1905,6 @@ def _env_enablement() -> Optional[dict]:
     ))
     home = _seed_extra_from_env((), home_env="BUZZ_HOME_CHANNEL", home_default=(seed.get("channels") or [""])[0])
     return {"relay_url": relay, **seed, **home}
-
 
 
 async def _standalone_send(
@@ -2005,7 +2003,9 @@ def interactive_setup() -> None:
 
 def register(ctx):
     """Plugin entry point: called by the Hermes plugin system."""
+    from plugins.platforms.buzz.send_targets import SEND_ENTRY_KWARGS
     ctx.register_platform(
+        **SEND_ENTRY_KWARGS,  # send_message target syntax + routing
         name="buzz", label="Buzz", adapter_factory=lambda cfg: BuzzAdapter(cfg), check_fn=check_requirements,
         validate_config=validate_config, is_connected=is_connected, required_env=["BUZZ_RELAY_URL", "BUZZ_PRIVATE_KEY"],
         install_hint="Requires the buzz CLI binary (https://github.com/block/buzz) on PATH or at BUZZ_CLI_PATH",

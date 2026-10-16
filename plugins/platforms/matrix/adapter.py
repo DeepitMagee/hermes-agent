@@ -3244,7 +3244,6 @@ def _apply_yaml_config(yaml_cfg: dict, matrix_cfg: dict) -> dict | None:
     return _apply_yaml_bridge(matrix_cfg, _YAML_BRIDGE)
 
 
-
 def _is_connected(config) -> bool:
     """Connected = homeserver + token (or password). Reads via hermes_cli.gateway.get_env_value so
     setup-status callers that patch it see the same value; PlatformConfig extras are honored."""
@@ -3258,7 +3257,9 @@ def _is_connected(config) -> bool:
 
 def register(ctx) -> None:
     from plugins.platforms.matrix.adapter_hint import PLATFORM_HINT
+    from plugins.platforms.matrix.send_targets import SEND_ENTRY_KWARGS
     ctx.register_platform(
+        **SEND_ENTRY_KWARGS,  # send_message target syntax + routing
         name="matrix", label="Matrix", adapter_factory=MatrixAdapter, check_fn=matrix_deps_present,
         ensure_deps_fn=ensure_matrix_deps, is_connected=_is_connected,
         required_env=["MATRIX_HOMESERVER", "MATRIX_ACCESS_TOKEN"], install_hint="pip install 'mautrix[encryption]'",

@@ -27,6 +27,7 @@ from gateway.platforms.helpers import redact_phone, send_chunks, strip_markdown
 from gateway.platforms._shared import (
     env_is_connected as _env_is_connected, get_scoped_secret as _get_scoped_secret, send_error
 )
+from gateway.platforms.send_targets import StandaloneSendPolicy
 
 try:
     import aiohttp
@@ -339,6 +340,7 @@ _PLATFORM_HINT = (
 def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
     ctx.register_platform(
+        standalone_send=StandaloneSendPolicy(text_direct=True),
         name="sms", label="SMS (Twilio)", adapter_factory=SmsAdapter,
         check_fn=check_sms_requirements, is_connected=_is_connected,
         required_env=["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER"],

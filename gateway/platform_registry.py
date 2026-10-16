@@ -138,6 +138,14 @@ class PlatformEntry:
     # either resolves "open" without ``allow_all_env`` / GATEWAY_ALLOW_ALL_USERS, startup is refused.
     # A "" member = that policy is YAML-only (QQ Bot). None = no own policy, never checked.
     own_policy_env: Optional[tuple] = None
+    # --- send ---
+    # send_message native target syntax, see ``gateway.platforms.send_targets``. A hint, not an
+    # authority like ``parse_target_ref_fn``: None / NOT_EXPLICIT fall back to core's generic id
+    # rules / channel directory, it also re-parses channel-directory hits, and it keeps
+    # ``pass_unresolved_references`` lenient.
+    target_ref_syntax_fn: Optional[Callable[[str], Any]] = None
+    # ``gateway.platforms.send_targets.StandaloneSendPolicy`` or None (generic send routing).
+    standalone_send: Optional[Any] = None
 
 
 def core_ships_platform(name: str) -> bool:

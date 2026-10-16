@@ -322,7 +322,6 @@ from gateway.platforms._shared import (
 )
 
 
-
 def _unauthorized() -> str:
     """Every refusal (slash command, approval button, picker, prompt) says the same thing — resolved
     per click so the active language applies (never bound at import)."""
@@ -7377,9 +7376,11 @@ _is_connected = _env_is_connected("DISCORD_BOT_TOKEN")
 def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
     from plugins.platforms.discord.adapter_hint import PLATFORM_HINT
+    from plugins.platforms.discord.send_targets import SEND_ENTRY_KWARGS
     from plugins.platforms.discord.onboarding import interactive_setup
 
     ctx.register_platform(
+        **SEND_ENTRY_KWARGS,  # send_message target syntax + routing
         name="discord",
         label="Discord",
         adapter_factory=DiscordAdapter,

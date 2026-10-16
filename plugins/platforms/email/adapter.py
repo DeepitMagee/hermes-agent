@@ -33,6 +33,7 @@ from gateway.platforms.event import MessageEvent, MessageType
 from gateway.config import Platform, PlatformConfig
 from utils import is_truthy_value
 from gateway.platforms._shared import get_scoped_secret as _get_secret, coerce_port, decode_json_list_literal, send_error
+from gateway.platforms.send_targets import StandaloneSendPolicy, regex_stripped_parser
 
 logger = logging.getLogger(__name__)
 
@@ -1005,9 +1006,14 @@ _PLATFORM_HINT = (
 )
 
 
+_SEND_TARGET_RE = re.compile(r"^\s*[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\s*$")
+
+
 def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
     ctx.register_platform(
+        target_ref_syntax_fn=regex_stripped_parser(_SEND_TARGET_RE),
+        standalone_send=StandaloneSendPolicy(text_direct=True),
         name="email", label="Email", adapter_factory=EmailAdapter, check_fn=check_email_requirements, is_connected=_is_connected,
         required_env=["EMAIL_ADDRESS", "EMAIL_PASSWORD", "EMAIL_SMTP_HOST"],
         install_hint="Email uses the Python stdlib (smtplib/imaplib) — no extra deps", allowed_users_env="EMAIL_ALLOWED_USERS",

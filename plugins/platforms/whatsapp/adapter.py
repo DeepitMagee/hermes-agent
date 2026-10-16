@@ -17,6 +17,7 @@ from typing import Dict, Optional, Any
 from gateway.platforms._shared import (
     apply_yaml_bridge as _apply_yaml_bridge, extra_or_secret as _extra_or_secret, get_scoped_secret, send_error
 )
+from gateway.platforms.send_targets import StandaloneSendPolicy, regex_stripped_parser
 from hermes_cli._subprocess_compat import windows_detach_popen_kwargs
 from hermes_constants import (find_node_executable, get_hermes_dir, with_hermes_node_path)
 
@@ -1240,8 +1241,17 @@ _PLATFORM_HINT = (
 )
 
 
+# WhatsApp JIDs (@g.us, @s.whatsapp.net, @lid, broadcast/newsletter) are native targets the adapter
+# accepts verbatim — explicit, never home-channel. E.164 numbers use core's phone rule.
+_SEND_JID_RE = re.compile(r"^\s*[\w-]+@(?:g\.us|s\.whatsapp\.net|lid|broadcast|newsletter)\s*$", re.IGNORECASE)
+
+
 def register(ctx) -> None:
     ctx.register_platform(
+        target_ref_syntax_fn=regex_stripped_parser(_SEND_JID_RE),
+        # Media goes through Baileys /send-media; ``mentions`` force the standalone route too.
+        standalone_send=StandaloneSendPolicy(label="WhatsApp", media=True, captionable=True,
+                                             forward_force_document=True, mentions=True, text_direct=True),
         name="whatsapp", label="WhatsApp", adapter_factory=WhatsAppAdapter, check_fn=check_whatsapp_requirements,
         is_connected=_is_connected, required_env=["WHATSAPP_ENABLED"],
         install_hint="WhatsApp requires a Node.js bridge — see the WhatsApp messaging docs",

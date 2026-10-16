@@ -5,6 +5,7 @@ import logging
 from gateway.config import PlatformConfig
 from gateway.platforms._shared import env_is_connected
 from gateway.platforms._shared import config_connected_extra
+from gateway.platforms.send_targets import NOT_EXPLICIT, StandaloneSendPolicy
 
 # Absolute imports (see __init__.py): one canonical module per file.
 from plugins.platforms.signal.adapter import (
@@ -39,11 +40,22 @@ _PLATFORM_HINT = (
     "You can send files natively: write MEDIA:/absolute/path/to/file in your response. "
     "Images (.png, .jpg, .webp) send as photos, other files as documents; ![alt](url) sends as photos."
 )
+def _parse_send_target(ref):
+    # "group:<id>" is a native group target; an empty id is not explicit.
+    stripped = ref.strip()
+    if not stripped.startswith("group:"):
+        return None
+    group_id = stripped[len("group:"):].strip()
+    return (f"group:{group_id}", None) if group_id else NOT_EXPLICIT
 
 
 def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
     ctx.register_platform(
+        target_ref_syntax_fn=_parse_send_target,
+        # Attachments ride the JSON-RPC param on the final chunk.
+        standalone_send=StandaloneSendPolicy(label="Signal", media=True, empty_list_between_chunks=True,
+                                             text_direct=True),
         name="signal", label="Signal", adapter_factory=SignalAdapter,
         check_fn=check_signal_requirements, validate_config=_validate_config,
         is_connected=_is_connected, required_env=["SIGNAL_HTTP_URL", "SIGNAL_ACCOUNT"],

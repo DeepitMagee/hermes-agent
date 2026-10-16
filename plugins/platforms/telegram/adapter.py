@@ -181,7 +181,7 @@ _MEDIA_KIND_KEYS = {
 from gateway.platforms.event import MessageEvent, MessageType, ProcessingOutcome
 from plugins.platforms.telegram.telegram_entities import expand_link_entities
 from plugins.platforms.telegram.telegram_held_inbound import TelegramHeldInboundMixin
-from plugins.platforms.telegram.telegram_ids import normalize_telegram_chat_id
+from plugins.platforms.telegram.telegram_ids import normalize_telegram_chat_id, parse_send_target
 from plugins.platforms.telegram.telegram_network import (
     SEED_FALLBACK_IPS, TelegramFallbackTransport, discover_fallback_ips, parse_fallback_ip_env, tcp_keepalive_socket_options)
 from utils import env_float, env_int
@@ -7322,4 +7322,5 @@ def register(ctx) -> None:
         display_tier="high",
         # Mobile inbox: quiet tool_progress / busy-ack, but keep interim commentary and heartbeats.
         display_overrides={"tool_progress": "off", "busy_ack_detail": False},
+        target_ref_syntax_fn=parse_send_target,
     )
