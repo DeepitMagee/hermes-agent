@@ -304,6 +304,61 @@ class TestVoiceChannelSidecarNoteMultiplexed:
         assert note is None
 
 
+class _AckAdapter:
+    """A Discord bot bound to text channel c1's voice call in guild 77."""
+
+    def __init__(self, bound):
+        self._voice_text_channels = {77: "c1"} if bound else {}
+        self.acks = []
+
+    def voice_mixer_active(self, guild_id):
+        return guild_id in self._voice_text_channels
+
+    async def play_ack_in_voice(self, guild_id):
+        self.acks.append(guild_id)
+
+
+class TestVoiceAckFollowsTheAnsweringBot:
+    """#139345, same class: the first-tool-call verbal ack resolves its guild on, and plays through,
+    the bot whose call is bound to the turn's text channel, not the default profile's bot."""
+
+    def _runner(self, primary_bound, secondary_bound):
+        primary, secondary = _AckAdapter(primary_bound), _AckAdapter(secondary_bound)
+        runner = _make_runner(adapters={Platform.DISCORD: primary})
+        runner._profile_adapters = {"otto": {Platform.DISCORD: secondary}}
+        runner.config = SimpleNamespace(multiplex_profiles=True)
+        return runner, primary, secondary
+
+    def test_secondary_in_call_gets_its_guild(self):
+        runner, _primary, secondary = self._runner(False, True)
+        source = _secondary_source()
+        source._transport_adapter_ref = lambda: secondary
+        assert runner._voice_ack_guild_for(source) == 77
+
+    def test_secondary_never_borrows_the_primary_call(self):
+        runner, _primary, secondary = self._runner(True, False)
+        source = _secondary_source()
+        source._transport_adapter_ref = lambda: secondary
+        assert runner._voice_ack_guild_for(source) is None
+
+    def test_ack_plays_through_the_answering_bot(self):
+        from gateway.run_turn_progress import GatewayTurnProgressMixin
+        runner, _primary, secondary = self._runner(True, True)
+        source = _secondary_source()
+        source._transport_adapter_ref = lambda: secondary
+        scheduled = []
+        progress = SimpleNamespace(
+            _runner=runner,
+            _ctx=SimpleNamespace(_voice_ack_fired=[False], _voice_ack_guild=[77], _run_still_current=lambda: True,
+                                 _voice_ack_loop=None, source=source),
+            _schedule=lambda coro, msg, loop=None: scheduled.append(coro),
+        )
+        GatewayTurnProgressMixin.voice_ack_callback(progress, "call1", "web_search", {})
+        assert len(scheduled) == 1
+        assert scheduled[0].cr_frame.f_locals["self"] is secondary
+        scheduled[0].close()
+
+
 # ---------------------------------------------------------------------------
 # 5. Sidecar note staging: one-shot per turn
 # ---------------------------------------------------------------------------

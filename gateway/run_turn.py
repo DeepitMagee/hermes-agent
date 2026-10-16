@@ -1130,6 +1130,19 @@ class GatewayTurnMixin(GatewayTurnPrepareMixin, GatewayTurnHygieneMixin, Gateway
         "interim_assistant_messages_enabled", "needs_progress_queue", "_native_slack_task_cards",
     )
 
+    def _voice_ack_guild_for(self, source: SessionSource) -> Optional[int]:
+        """Guild whose voice call is bound to *source*'s text channel on the bot that ANSWERS it.
+        Under multiplexing a secondary profile's call lives on its own adapter, never the default's
+        (#139345): reading ``self.adapters`` would miss its call or borrow the primary bot's."""
+        if source.platform != Platform.DISCORD:
+            return None
+        adapter = self._delivery_adapter_for(source)
+        bound = getattr(adapter, "_voice_text_channels", None)
+        if not (isinstance(bound, dict) and hasattr(adapter, "voice_mixer_active")):
+            return None
+        return next((gid for gid, channel in bound.items()
+                     if str(channel) == str(source.chat_id) and adapter.voice_mixer_active(gid)), None)
+
     def _run_agent_build_turn_context(
         self, disp: GatewayRunner._RunAgentDisplay, AIAgent: Any, *, message: str, source: SessionSource,
         session_key: Optional[str], run_generation: Optional[int], **turn_params,
@@ -1140,15 +1153,7 @@ class GatewayTurnMixin(GatewayTurnPrepareMixin, GatewayTurnHygieneMixin, Gateway
         from gateway.run_turn_runner import TurnRunner
         # Discord voice "verbal ack" on the FIRST tool call (discord.voice_fx.enabled): resolve the
         # guild whose voice connection is bound to this text channel (mirrors DiscordAdapter.play_tts).
-        _voice_ack_guild: list[Optional[int]] = [None]
-        if source.platform == Platform.DISCORD:
-            _va = self.adapters.get(Platform.DISCORD)
-            _vtc = getattr(_va, "_voice_text_channels", None)
-            if isinstance(_vtc, dict) and hasattr(_va, "voice_mixer_active"):
-                _voice_ack_guild[0] = next(
-                    (_gid for _gid, _tc in _vtc.items() if str(_tc) == str(source.chat_id) and _va.voice_mixer_active(_gid)),
-                    None,
-                )
+        _voice_ack_guild: list[Optional[int]] = [self._voice_ack_guild_for(source)]
 
         # Auto-cleanup of temporary progress bubbles needs a real ``delete_message`` (getattr on the
         # type: a fake adapter without it means "can't delete", not a crash).
