@@ -1,4 +1,5 @@
 """Non-destructive bridge allocation for multiplexed secondary profiles."""
+import os
 import socket
 from contextlib import suppress
 from pathlib import Path
@@ -13,7 +14,10 @@ def port_is_free(port: int) -> bool:
     with socket.socket() as sock:
         # A just-stopped bridge can leave its accepted TCP connections in TIME-WAIT. The Node
         # bridge enables this option too, so match its bind semantics while still rejecting a listener.
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # POSIX only, like libuv: on Windows SO_REUSEADDR lets a bind share a live listener's port,
+        # which would read a foreign bridge as free (Windows binds past TIME-WAIT without it).
+        if os.name != "nt":
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             sock.bind(("127.0.0.1", port))
         except OSError:
