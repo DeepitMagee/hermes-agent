@@ -996,6 +996,14 @@ def _is_connected(config) -> bool:
     return bool((gateway_mod.get_env_value("EMAIL_ADDRESS") or "").strip())
 
 
+# System-prompt platform hint (PlatformEntry.platform_hint); cached-prompt bytes, keep stable.
+_PLATFORM_HINT = (
+    "You are communicating via email. Write clear, well-structured responses suitable for email. Use "
+    "plain text formatting (no markdown). Keep responses concise but complete. You can send file "
+    "attachments — include MEDIA:/absolute/path/to/file in your response. The subject line is preserved "
+    "for threading. Do not include greetings or sign-offs unless contextually appropriate."
+)
+
 
 def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
@@ -1004,4 +1012,7 @@ def register(ctx) -> None:
         required_env=["EMAIL_ADDRESS", "EMAIL_PASSWORD", "EMAIL_SMTP_HOST"],
         install_hint="Email uses the Python stdlib (smtplib/imaplib) — no extra deps", allowed_users_env="EMAIL_ALLOWED_USERS",
         allow_all_env="EMAIL_ALLOW_ALL_USERS", cron_deliver_env_var="EMAIL_HOME_ADDRESS", standalone_sender_fn=_standalone_send,
-        max_message_length=50_000, pii_safe=True, emoji="📧", allow_update_command=True)
+        max_message_length=50_000, pii_safe=True, emoji="📧", allow_update_command=True,
+        platform_hint=_PLATFORM_HINT,
+        display_tier="minimal",
+    )

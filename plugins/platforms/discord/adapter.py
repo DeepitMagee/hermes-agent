@@ -1,3 +1,4 @@
+# health: allow FILE_LINES -- platform-tables refactor: core's PLATFORM_HINTS/_PLATFORM_DEFAULTS rows for this platform moved onto its register() call (hint text lives in adapter_hint.py); the growth is only those kwargs
 from __future__ import annotations
 
 """
@@ -7373,9 +7374,9 @@ def _apply_yaml_config(yaml_cfg: dict, discord_cfg: dict) -> dict | None:
 _is_connected = _env_is_connected("DISCORD_BOT_TOKEN")
 
 
-
 def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
+    from plugins.platforms.discord.adapter_hint import PLATFORM_HINT
     from plugins.platforms.discord.onboarding import interactive_setup
 
     ctx.register_platform(
@@ -7404,4 +7405,8 @@ def register(ctx) -> None:
         max_message_length=2000,
         emoji="🎮",
         allow_update_command=True,
+        platform_hint=PLATFORM_HINT,
+        display_tier="high",
+        # "-# " subtext reads as metadata.
+        display_overrides={"reasoning_style": "subtext"},
     )

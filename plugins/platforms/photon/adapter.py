@@ -1722,7 +1722,10 @@ def register(ctx) -> None:
             "sends as a rich preview card. You can send files natively: write MEDIA:/absolute/path/to/file "
             "in your response (images and video appear inline, audio as voice notes, other files as "
             "attachments). Recipient identifiers are E.164 phone numbers; never expose them in responses "
-            "unless the user asked."))
+            "unless the user asked."),
+        # Permanent-message iMessage inboxes (no edit).
+        display_tier="low",
+    )
     ctx.register_cli_command(
         name="photon", help="Set up and manage the Photon iMessage integration",
         setup_fn=_cli.register_cli, handler_fn=_cli.dispatch)

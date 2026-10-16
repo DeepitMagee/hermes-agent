@@ -714,6 +714,15 @@ def _apply_yaml_config(yaml_cfg: dict, mattermost_cfg: dict) -> dict | None:
 _is_connected = _env_is_connected("MATTERMOST_TOKEN", "MATTERMOST_URL")
 
 
+# System-prompt platform hint (PlatformEntry.platform_hint); cached-prompt bytes, keep stable.
+_PLATFORM_HINT = (
+    "You are in a Mattermost workspace communicating with your user. Mattermost renders standard "
+    "Markdown — headings, bold, italic, code blocks, and tables all work. You can send media files "
+    "natively: include MEDIA:/absolute/path/to/file in your response. Images (.jpg, .png, .webp) are "
+    "uploaded as photo attachments, audio and video as file attachments. Image URLs in markdown format "
+    "![alt](url) are rendered as inline previews automatically."
+)
+
 
 def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
@@ -726,4 +735,7 @@ def register(ctx) -> None:
         allowed_users_env="MATTERMOST_ALLOWED_USERS", allow_all_env="MATTERMOST_ALLOW_ALL_USERS",
         cron_deliver_env_var="MATTERMOST_HOME_CHANNEL",
         standalone_sender_fn=_standalone_send,  # out-of-process cron; without it `deliver=mattermost` fails
-        max_message_length=MAX_POST_LENGTH, emoji="💬", allow_update_command=True)
+        max_message_length=MAX_POST_LENGTH, emoji="💬", allow_update_command=True,
+        platform_hint=_PLATFORM_HINT,
+        display_tier="medium",
+    )

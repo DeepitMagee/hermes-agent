@@ -685,6 +685,19 @@ def interactive_setup() -> None:
           "   Install: https://docs.bluebubbles.app/helper-bundle/installation")
 
 
+# System-prompt platform hint (PlatformEntry.platform_hint); cached-prompt bytes, keep stable.
+_PLATFORM_HINT = (
+    # The adapter runs strip_markdown(keep_link_targets=True): markers vanish, the layout stays.
+    "You are texting via iMessage (BlueBubbles). Replies arrive as plain text bubbles, so write like a person "
+    "texting: short and conversational, answer first, no preamble or recap. Markdown does not render and is "
+    "stripped, so skip headers, tables, code fences and backticks; for a few items use short lines or a "
+    "sentence rather than nested bullets. Put a command or code snippet on its own line as plain text so it "
+    "can be copied. Write links as bare URLs (iMessage auto-links them). "
+    "You can send files natively: write MEDIA:/absolute/path/to/file in your response. "
+    "Images (.jpg, .png, .heic) appear as photos and other files arrive as attachments."
+)
+
+
 def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
     ctx.register_platform(
@@ -698,4 +711,7 @@ def register(ctx) -> None:
         standalone_sender_fn=_standalone_send,  # out-of-process cron / send_message
         # 0 = send_message does not pre-chunk: the adapter's send() splits per paragraph and
         # truncates itself (MAX_MESSAGE_LENGTH), exactly as the former core sender did.
-        max_message_length=0, pii_safe=True, emoji="💬", allow_update_command=True)
+        max_message_length=0, pii_safe=True, emoji="💬", allow_update_command=True,
+        platform_hint=_PLATFORM_HINT,
+        display_tier="low",
+    )

@@ -1,3 +1,4 @@
+# health: allow FILE_LINES -- platform-tables refactor: core's PLATFORM_HINTS/_PLATFORM_DEFAULTS rows for this platform moved onto its register() call (hint text lives in adapter_hint.py); the growth is only those kwargs
 """Slack platform adapter: slack-bolt Socket Mode (messages, slash commands, threads)."""
 
 import asyncio
@@ -6908,9 +6909,9 @@ def _apply_yaml_config(yaml_cfg: dict, slack_cfg: dict) -> dict | None:
 _is_connected = _env_is_connected("SLACK_BOT_TOKEN")
 
 
-
 def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
+    from plugins.platforms.slack.adapter_hint import PLATFORM_HINT
     ctx.register_platform(
         name="slack",
         label="Slack",
@@ -6937,4 +6938,9 @@ def register(ctx) -> None:
         max_message_length=39000,
         emoji="💼",
         allow_update_command=True,
-        allow_bots_env="SLACK_ALLOW_BOTS")
+        allow_bots_env="SLACK_ALLOW_BOTS",
+        platform_hint=PLATFORM_HINT,
+        display_tier="medium",
+        # Bolt posts cannot be edited like CLI; "new"/"all" spam permanent lines.
+        display_overrides={"tool_progress": "off", "long_running_notifications": False, "busy_ack_detail": False},
+    )

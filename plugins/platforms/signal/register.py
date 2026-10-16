@@ -32,6 +32,15 @@ def _validate_config(config: PlatformConfig) -> bool:
     return False
 
 
+# System-prompt platform hint (PlatformEntry.platform_hint); cached-prompt bytes, keep stable.
+_PLATFORM_HINT = (
+    "You are on Signal. Standard markdown (**bold**, *italic*, ~~strike~~, # headers, `code`) auto-converts to "
+    "Signal formatting; bullets render as \u2022. No tables \u2014 use bullets or labeled lines. "
+    "You can send files natively: write MEDIA:/absolute/path/to/file in your response. "
+    "Images (.png, .jpg, .webp) send as photos, other files as documents; ![alt](url) sends as photos."
+)
+
+
 def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
     ctx.register_platform(
@@ -45,4 +54,7 @@ def register(ctx) -> None:
         # Out-of-process sends speak raw JSON-RPC and bypass SignalAdapter.send()'s chunking, so
         # send_message splits at the adapter's limit through this field.
         standalone_sender_fn=standalone_send, max_message_length=MAX_MESSAGE_LENGTH,
-        emoji="📡", pii_safe=True, allow_update_command=True)
+        emoji="📡", pii_safe=True, allow_update_command=True,
+        platform_hint=_PLATFORM_HINT,
+        display_tier="low",
+    )

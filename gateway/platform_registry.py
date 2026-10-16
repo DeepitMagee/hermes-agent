@@ -115,6 +115,10 @@ class PlatformEntry:
     # Built-in display defaults tier ("high" | "medium" | "low" | "minimal", see
     # gateway/display_config.py) used below the user's display.* overrides; "" = global defaults.
     display_tier: str = ""
+    # --- prompt ---
+    # Per-key display defaults layered over ``display_tier`` (e.g. Discord ``reasoning_style``);
+    # empty = the tier as-is. Same keys as display_config._GLOBAL_DEFAULTS.
+    display_overrides: dict = field(default_factory=dict)
     # Env prefixes shared with a non-channel capability (the same plugin's tools): profile clones
     # strip keys under them only when the source profile runs the adapter (profile_channels.py).
     shared_env_prefixes: tuple = ()

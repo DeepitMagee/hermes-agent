@@ -1086,6 +1086,17 @@ def _interactive_setup() -> None:
     run_whatsapp_cloud_setup()
 
 
+# System-prompt platform hint (PlatformEntry.platform_hint); cached-prompt bytes, keep stable.
+_PLATFORM_HINT = (
+    "You are on WhatsApp (Meta Business Cloud API). Standard markdown auto-converts to WhatsApp syntax "
+    "\u2014 write markdown freely. No tables \u2014 use bullets or labeled lines. "
+    "You can send files natively: write MEDIA:/absolute/path/to/file in your response. "
+    "Images (.jpg, .png) send as photos, videos (.mp4) inline, audio as voice/audio, other files as "
+    "documents; ![alt](url) works. NOTE: Meta refuses free-form replies when the user hasn't messaged in "
+    "24h (error 131047) \u2014 relevant only for delayed/scheduled sends."
+)
+
+
 def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system.
 
@@ -1101,4 +1112,7 @@ def register(ctx) -> None:
         install_hint="aiohttp/httpx missing — reinstall hermes-agent", setup_fn=_interactive_setup,
         allowed_users_env="WHATSAPP_CLOUD_ALLOWED_USERS", allow_all_env="WHATSAPP_CLOUD_ALLOW_ALL_USERS",
         cron_deliver_env_var="WHATSAPP_CLOUD_HOME_CHANNEL", emoji="📱", allow_update_command=False,
+        platform_hint=_PLATFORM_HINT,
+        # Adapter lacks edit_message; promote once it lands.
+        display_tier="low",
     )
