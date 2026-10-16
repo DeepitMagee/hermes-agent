@@ -72,8 +72,9 @@ def _allowlist_env_for_platform(platform: str) -> Optional[str]:
         from hermes_cli.plugins import discover_plugins
         discover_plugins()  # idempotent
     with contextlib.suppress(Exception):
+        from gateway.platform_env import authz_field
         from gateway.platform_registry import platform_registry
-        return platform_registry.get(platform).allowed_users_env or None
+        return authz_field(platform, "allowed_users_env", platform_registry.get(platform)) or None
     return None
 
 

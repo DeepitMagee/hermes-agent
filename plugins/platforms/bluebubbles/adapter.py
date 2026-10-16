@@ -710,7 +710,6 @@ def register(ctx) -> None:
         config_connected_fn=config_connected_extra("server_url", "password"),
         required_env=["BLUEBUBBLES_SERVER_URL", "BLUEBUBBLES_PASSWORD"], install_hint=_INSTALL_HINT,
         setup_fn=interactive_setup,
-        allowed_users_env="BLUEBUBBLES_ALLOWED_USERS", allow_all_env="BLUEBUBBLES_ALLOW_ALL_USERS",
         cron_deliver_env_var="BLUEBUBBLES_HOME_CHANNEL",
         standalone_sender_fn=_standalone_send,  # out-of-process cron / send_message
         # 0 = send_message does not pre-chunk: the adapter's send() splits per paragraph and
@@ -719,5 +718,5 @@ def register(ctx) -> None:
         platform_hint=_PLATFORM_HINT,
         display_tier="low",
         env_overrides=gateway_env.ENV_OVERRIDES,
-        env_enable_credentials=gateway_env.ENV_ENABLE_CREDENTIALS,
+        env_enable_credentials=gateway_env.ENV_ENABLE_CREDENTIALS, **gateway_env.AUTHZ,
     )

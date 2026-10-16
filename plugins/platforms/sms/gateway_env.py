@@ -13,3 +13,10 @@ ENV_OVERRIDES = (
     EnvCred(Platform.SMS, ("TWILIO_ACCOUNT_SID",), then=_api_key),
     home_step(Platform.SMS, "SMS_HOME_CHANNEL"),
 )
+
+# Authorization env names (``PlatformEntry`` fields). Core reads them from this file when the
+# live entry lacks them: a user plugin overriding this platform, safe mode, the plugin disabled.
+AUTHZ = {
+    "allowed_users_env": "SMS_ALLOWED_USERS",
+    "allow_all_env": "SMS_ALLOW_ALL_USERS",
+}

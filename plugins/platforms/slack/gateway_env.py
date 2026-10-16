@@ -21,3 +21,11 @@ def _home(config: GatewayConfig) -> None:
 
 ENV_ENABLE_CREDENTIALS = ("SLACK_BOT_TOKEN",)
 ENV_OVERRIDES = (EnvCred(Platform.SLACK, ("SLACK_BOT_TOKEN",), token="SLACK_BOT_TOKEN"), _home)
+
+# Authorization env names (``PlatformEntry`` fields). Core reads them from this file when the
+# live entry lacks them: a user plugin overriding this platform, safe mode, the plugin disabled.
+AUTHZ = {
+    "allowed_users_env": "SLACK_ALLOWED_USERS",
+    "allow_all_env": "SLACK_ALLOW_ALL_USERS",
+    "allow_bots_env": "SLACK_ALLOW_BOTS",
+}

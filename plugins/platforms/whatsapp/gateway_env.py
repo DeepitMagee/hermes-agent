@@ -20,3 +20,11 @@ def _enabled_flag(config: GatewayConfig) -> None:
 
 ENV_ENABLE_CREDENTIALS = ("WHATSAPP_ENABLED",)
 ENV_OVERRIDES = (_enabled_flag, home_step(Platform.WHATSAPP, "WHATSAPP_HOME_CHANNEL"))
+
+# Authorization env names (``PlatformEntry`` fields). Core reads them from this file when the
+# live entry lacks them: a user plugin overriding this platform, safe mode, the plugin disabled.
+AUTHZ = {
+    "allowed_users_env": "WHATSAPP_ALLOWED_USERS",
+    "allow_all_env": "WHATSAPP_ALLOW_ALL_USERS",
+    "own_policy_env": ("WHATSAPP_DM_POLICY", "WHATSAPP_GROUP_POLICY"),
+}

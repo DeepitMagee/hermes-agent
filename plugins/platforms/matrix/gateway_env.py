@@ -24,3 +24,10 @@ ENV_OVERRIDES = (
     ),
     home_step(Platform.MATRIX, "MATRIX_HOME_ROOM"),
 )
+
+# Authorization env names (``PlatformEntry`` fields). Core reads them from this file when the
+# live entry lacks them: a user plugin overriding this platform, safe mode, the plugin disabled.
+AUTHZ = {
+    "allowed_users_env": "MATRIX_ALLOWED_USERS",
+    "allow_all_env": "MATRIX_ALLOW_ALL_USERS",
+}

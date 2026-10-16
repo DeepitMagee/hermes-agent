@@ -944,12 +944,13 @@ def _platform_authz_env_names(platform_id: str) -> tuple[str, str]:
     with contextlib.suppress(Exception):
         from gateway.platform_registry import platform_registry
 
+        from gateway.platform_env import authz_field
+
         entry = platform_registry.get(platform_id)
-        if entry is not None:
-            if getattr(entry, "trusted_inbound", False) is True:
-                return "", ""
-            allowed = getattr(entry, "allowed_users_env", "") or ""
-            allow_all = getattr(entry, "allow_all_env", "") or ""
+        if entry is not None and getattr(entry, "trusted_inbound", False) is True:
+            return "", ""
+        allowed = authz_field(platform_id, "allowed_users_env", entry) or ""
+        allow_all = authz_field(platform_id, "allow_all_env", entry) or ""
     return allowed, allow_all
 
 

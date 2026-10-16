@@ -17,3 +17,11 @@ ENV_OVERRIDES = (
     _fallback_ips,
     home_step(Platform.TELEGRAM, "TELEGRAM_HOME_CHANNEL"),
 )
+
+# Authorization env names (``PlatformEntry`` fields). Core reads them from this file when the
+# live entry lacks them: a user plugin overriding this platform, safe mode, the plugin disabled.
+AUTHZ = {
+    "allowed_users_env": "TELEGRAM_ALLOWED_USERS",
+    "allow_all_env": "TELEGRAM_ALLOW_ALL_USERS",
+    "allow_bots_env": "TELEGRAM_ALLOW_BOTS",
+}

@@ -144,11 +144,21 @@ def _cred_row_envs(row) -> set[str]:
 
 def config_env_table_keys(entries: Iterable = ()) -> dict[str, str]:
     """``{ENV_KEY: platform_id}`` for the names the gateway env overrides read outright: core's
-    enable-credential sets plus, for each given registry entry, its ``env_enable_credentials`` and
-    every ``EnvCred`` row of its ``env_overrides``. With no *entries* it is registry-free (core rows
-    only), so it stays cheap at import time; raises if the core table cannot be read."""
+    enable-credential sets plus, for each given registry entry and every bundled platform plugin
+    (its ``gateway_env.py`` read from file, no adapter import), its ``env_enable_credentials`` and
+    every ``EnvCred`` row of its ``env_overrides``. Registry-free without *entries*, so it stays
+    cheap at import time; raises if the core table cannot be read."""
+    from types import SimpleNamespace
+
     from gateway import config_env
-    from gateway.platform_env import EnvCred
+    from gateway.config import Platform
+    from gateway.platform_env import _BUNDLED_ENV_SIBLINGS, EnvCred, bundled_env_rows
+    entries = list(entries)
+    given = {getattr(entry, "name", "") for entry in entries}
+    for name in sorted((set(Platform._scan_bundled_plugin_platforms()[0]) | set(_BUNDLED_ENV_SIBLINGS)) - given):
+        rows = bundled_env_rows(name)
+        if rows:
+            entries.append(SimpleNamespace(name=name, env_overrides=rows[0], env_enable_credentials=rows[1]))
     keys: dict[str, str] = {}
     for platform, names in config_env._ENV_ENABLE_CREDENTIALS.items():
         keys.update(dict.fromkeys(names, platform.value))

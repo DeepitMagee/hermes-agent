@@ -65,7 +65,6 @@ def register(ctx) -> None:
         is_connected=_is_connected, required_env=["SIGNAL_HTTP_URL", "SIGNAL_ACCOUNT"],
         config_connected_fn=config_connected_extra("http_url"),
         install_hint="Signal: runtime requirements not met", setup_fn=interactive_setup,
-        allowed_users_env="SIGNAL_ALLOWED_USERS", allow_all_env="SIGNAL_ALLOW_ALL_USERS",
         cron_deliver_env_var="SIGNAL_HOME_CHANNEL",
         # Out-of-process sends speak raw JSON-RPC and bypass SignalAdapter.send()'s chunking, so
         # send_message splits at the adapter's limit through this field.
@@ -74,5 +73,5 @@ def register(ctx) -> None:
         platform_hint=_PLATFORM_HINT,
         display_tier="low",
         env_overrides=gateway_env.ENV_OVERRIDES,
-        env_enable_credentials=gateway_env.ENV_ENABLE_CREDENTIALS,
+        env_enable_credentials=gateway_env.ENV_ENABLE_CREDENTIALS, **gateway_env.AUTHZ,
     )

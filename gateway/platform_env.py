@@ -211,3 +211,22 @@ def bundled_env_rows(name: str) -> Optional[tuple]:
         return None
     return (tuple(getattr(module, f"{prefix}ENV_OVERRIDES", ()) or ()),
             tuple(getattr(module, f"{prefix}ENV_ENABLE_CREDENTIALS", ()) or ()))
+
+
+def bundled_authz(name: str) -> dict:
+    """``AUTHZ`` (allowlist / allow-all / allow-bots / own-policy env names) a bundled platform
+    plugin declares in its ``gateway_env.py``, read without the plugin; {} for other names."""
+    from gateway.config import Platform
+    directory, prefix = _BUNDLED_ENV_SIBLINGS.get(name, (name, ""))
+    if directory not in Platform._scan_bundled_plugin_platforms()[0]:
+        return {}
+    module = _bundled_gateway_env_module(directory)
+    return dict(getattr(module, f"{prefix}AUTHZ", None) or {}) if module is not None else {}
+
+
+def authz_field(name: str, field: str, entry: Any = None) -> Any:
+    """*entry*'s authorization env field, else the bundled plugin's declaration. A user plugin
+    overriding a bundled platform, safe mode or a disabled plugin then still gate on the names core
+    always enforced for it; never looser than the bundled adapter."""
+    value = getattr(entry, field, None) if entry is not None else None
+    return value or bundled_authz(str(name or "").strip().lower()).get(field)

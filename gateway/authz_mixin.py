@@ -53,6 +53,12 @@ def _env_truthy(name: str) -> bool:
     return _auth_env(name).lower() in _TRUTHY
 
 
+def authz_field(name, field, entry):
+    """Late-bound :func:`gateway.platform_env.authz_field` (entry field, else the bundled declaration)."""
+    from gateway.platform_env import authz_field as _field
+    return _field(name, field, entry)
+
+
 def _registry_entry(platform):
     """Platform-registry entry for a (plugin) platform, or None. Discovers first (idempotent): the
     allowlist env names live only on the entry, so an undiscovered process must not read "no list"."""
@@ -497,7 +503,7 @@ class GatewayAuthorizationMixin:
             # under multiplex only the default profile's list reaches the env (first-writer-wins
             # bridge), so read the live adapter's.
             entry = _registry_entry(source.platform)
-            if entry and entry.allowed_users_env:
+            if authz_field(source.platform.value, "allowed_users_env", entry):
                 # Buzz) carry the same operator-configured allowlist in
                 # ``PlatformConfig.extra.allowed_users``. An absent/empty entry changes nothing here — the
                 # default-deny below still applies. See #82871, #98738.
@@ -567,7 +573,7 @@ class GatewayAuthorizationMixin:
             with contextlib.suppress(Exception):
                 from hermes_cli.plugins import discover_plugins
                 discover_plugins()
-            allow_bots_var = getattr(_registry_entry(source.platform), "allow_bots_env", "")
+            allow_bots_var = authz_field(source.platform.value, "allow_bots_env", _registry_entry(source.platform)) or ""
             if allow_bots_var:
                 extra = {}
                 with contextlib.suppress(Exception):
@@ -660,8 +666,8 @@ class GatewayAuthorizationMixin:
             return False
 
         entry = _registry_entry(source.platform)
-        platform_allow_env = getattr(entry, "allowed_users_env", "") or ""
-        platform_allow_all_var = getattr(entry, "allow_all_env", "") or ""
+        platform_allow_env = authz_field(source.platform.value, "allowed_users_env", entry) or ""
+        platform_allow_all_var = authz_field(source.platform.value, "allow_all_env", entry) or ""
         if platform_allow_all_var and _env_truthy(platform_allow_all_var):
             return True
         # Adapter-verified role auth (Discord DISCORD_ALLOWED_ROLES). ``is True``: no MagicMock pass.
@@ -743,7 +749,7 @@ class GatewayAuthorizationMixin:
                 return "pair"
             if dm_policy in {"allowlist", "disabled"}:
                 return "ignore"
-            env_key = (getattr(_registry_entry(platform), "allowed_users_env", "") or ""
+            env_key = (authz_field(platform.value, "allowed_users_env", _registry_entry(platform)) or ""
                        if platform in _ALLOWLIST_SUPPRESSES_PAIRING else "")
             allowlist_keys = [env_key, _GROUP_USER_ENV.get(platform), _GROUP_CHAT_ENV.get(platform), *allowlist_keys]
         if any(key and _auth_env(key).strip() for key in allowlist_keys):

@@ -6932,8 +6932,6 @@ def register(ctx) -> None:
         # env vars that the adapter reads via os.getenv(). Replaces the hardcoded block in
         # gateway/config.py. Hook contract: #24849.
         apply_yaml_config_fn=_apply_yaml_config,
-        allowed_users_env="SLACK_ALLOWED_USERS",
-        allow_all_env="SLACK_ALLOW_ALL_USERS",
         cron_deliver_env_var="SLACK_HOME_CHANNEL",
         # Out-of-process cron delivery; without it deliver=slack cron jobs fail with
         # "No live adapter" when cron runs apart from the gateway.
@@ -6942,11 +6940,10 @@ def register(ctx) -> None:
         max_message_length=39000,
         emoji="💼",
         allow_update_command=True,
-        allow_bots_env="SLACK_ALLOW_BOTS",
         platform_hint=PLATFORM_HINT,
         display_tier="medium",
         # Bolt posts cannot be edited like CLI; "new"/"all" spam permanent lines.
         display_overrides={"tool_progress": "off", "long_running_notifications": False, "busy_ack_detail": False},
         env_overrides=gateway_env.ENV_OVERRIDES,
-        env_enable_credentials=gateway_env.ENV_ENABLE_CREDENTIALS,
+        env_enable_credentials=gateway_env.ENV_ENABLE_CREDENTIALS, **gateway_env.AUTHZ,
     )

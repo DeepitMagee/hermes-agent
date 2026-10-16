@@ -62,27 +62,17 @@ def recover_left_core_at_gateway_start() -> None:
 
 
 def _own_policy_envs(platform) -> Optional[tuple]:
-    """``(dm_policy_env, group_policy_env, allow_all_env)`` when the plugin's PlatformEntry declares
-    ``own_policy_env`` (an enabled platform's lookup imports only that adapter, which the gateway
-    builds anyway), else None. A bundled platform with NO entry (plugin disabled / failed to load)
-    fails CLOSED on the ``<NAME>_*`` names (allow-all: the one its manifest declares, e.g. QQ's
-    ``QQ_ALLOW_ALL_USERS``): its config can still enable it, and enabling the plugin later re-wires
-    the adapter into the live gateway without re-running the startup check."""
+    """``(dm_policy_env, group_policy_env, allow_all_env)`` for a platform that declares
+    ``own_policy_env``, else None. The live entry wins; a bundled platform whose entry is absent
+    (plugin disabled, safe mode) or lacks the field (a user plugin overriding it) falls back to the
+    names its ``gateway_env.AUTHZ`` declares, so the startup refusal never weakens."""
+    from gateway.platform_env import authz_field
     from gateway.platform_registry import platform_registry
     entry = platform_registry.get(platform.value)
-    if entry is None and platform.value in Platform._scan_bundled_plugin_platforms()[0]:
-        prefix, declared = platform.value.upper(), []
-        with suppress(Exception):
-            from utils import fast_safe_load
-            manifest = Path(__file__).resolve().parent.parent / "plugins" / "platforms" / platform.value / "plugin.yaml"
-            data = fast_safe_load(manifest.read_text(encoding="utf-8-sig")) or {}
-            declared = [str(e.get("name", "")) for e in (*data.get("requires_env", ()), *data.get("optional_env", ()))
-                        if isinstance(e, dict) and str(e.get("name", "")).endswith("_ALLOW_ALL_USERS")]
-        allow_all = declared[0] if len(declared) == 1 else f"{prefix}_ALLOW_ALL_USERS"
-        return f"{prefix}_DM_POLICY", f"{prefix}_GROUP_POLICY", allow_all
-    if entry is None or entry.own_policy_env is None:
+    own = authz_field(platform.value, "own_policy_env", entry)
+    if not own:
         return None
-    return (*entry.own_policy_env, entry.allow_all_env)
+    return (*own, authz_field(platform.value, "allow_all_env", entry))
 
 
 class GatewayStartupMixin:
