@@ -749,8 +749,8 @@ class GatewayACPAgent(acp.Agent):
             if task:
                 task.cancel()
             return
-        if kind == "reasoning.delta":
-            await self._project_reasoning(editor_id, payload)
+        if kind in {"reasoning.delta", "todo.updated"}:
+            await self._project_side_update(kind, editor_id, payload)
             return
         # In-process turns publish ``tool_name``; managed workers publish ``name``.
         tool_name = payload.get("tool_name") or payload.get("name") or "tool"
@@ -809,12 +809,24 @@ class GatewayACPAgent(acp.Agent):
             finally:
                 self._settling.discard(aid)
 
-    async def _project_reasoning(self, editor_id, payload):
-        """The model's reasoning as thought chunks, as the in-process server streamed it. It never enters the
-        reply's segments, so ``message.complete``'s final remainder is unchanged."""
-        text = _text(payload)
-        if text and self._conn:
-            await self._conn.session_update(session_id=editor_id, update=acp.update_agent_thought_text(text))
+    async def _project_side_update(self, kind, editor_id, payload):
+        """Turn events outside the reply text, as the in-process server projected them.
+
+        ``reasoning.delta``: the model's reasoning as thought chunks. It never enters the reply's segments,
+        so ``message.complete``'s final remainder is unchanged.
+        ``todo.updated``: the owner's full todo snapshot (published for a LOCAL session's turn, which an ACP
+        session is) as the native ``plan`` update Zed renders as its task panel (#134889 ACP-5)."""
+        if kind == "reasoning.delta":
+            text = _text(payload)
+            update = acp.update_agent_thought_text(text) if text else None
+        else:
+            import json
+            from acp_adapter.events import _build_plan_update_from_todo_result
+            todos = payload.get("todos")
+            update = _build_plan_update_from_todo_result(json.dumps({"todos": todos})) \
+                if isinstance(todos, list) else None
+        if update is not None and self._conn:
+            await self._conn.session_update(session_id=editor_id, update=update)
 
     async def _project_session_state(self, kind, sid, editor_id, payload):
         if kind == "session.usage":
