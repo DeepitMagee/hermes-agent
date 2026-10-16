@@ -971,7 +971,9 @@ def _count_csv(value: str) -> int:
     return len([part for part in (value or "").split(",") if part.strip()])
 
 
-def _messaging_platform_posture(platform_id: str, entry: dict[str, Any], scoped: bool) -> dict[str, Any] | None:
+def _messaging_platform_posture(
+    platform_id: str, entry: dict[str, Any], scoped: bool, authz_env: tuple[str, str]
+) -> dict[str, Any] | None:
     """Auth-posture verdict for a CONNECTED platform (must be called inside the profile
     scope, after the connectivity chain has already reported ``connected``).
 
@@ -991,8 +993,10 @@ def _messaging_platform_posture(platform_id: str, entry: dict[str, Any], scoped:
     Everything failing → deny-all: the connection is up but no sender can get through,
     which the Channels "Test" button must not render as a plain green "connected".
     Returns ``None`` when the platform has no per-user authorization surface at all.
+    *authz_env* is :func:`_platform_authz_env_names`, resolved OUTSIDE the profile scope (see
+    :func:`_env_value_rules`: the scope's registry overlay may not hold the entry).
     """
-    allowed_env, allow_all_env = _platform_authz_env_names(platform_id)
+    allowed_env, allow_all_env = authz_env
     if not allowed_env:
         return None
 
@@ -1053,6 +1057,7 @@ def _messaging_platform_posture(platform_id: str, entry: dict[str, Any], scoped:
 @router.post("/api/messaging/platforms/{platform_id}/test")
 async def test_messaging_platform(platform_id: str, profile: Optional[str] = None):
     entry = _require_platform(platform_id)
+    authz_env = _platform_authz_env_names(platform_id)
 
     def _run():
         with _profile_scope(profile) as scoped_dir:
@@ -1062,7 +1067,7 @@ async def test_messaging_platform(platform_id: str, profile: Optional[str] = Non
                 # Still inside the profile scope: load_env()/load_config()/PairingStore
                 # must resolve the ACTIVE profile's env/config/pairing store, not the
                 # dashboard process's root home.
-                posture = _messaging_platform_posture(platform_id, entry, scoped_dir is not None)
+                posture = _messaging_platform_posture(platform_id, entry, scoped_dir is not None, authz_env)
             return payload, posture
 
     payload, posture = await asyncio.to_thread(_run)

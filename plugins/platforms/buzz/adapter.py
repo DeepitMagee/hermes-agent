@@ -219,22 +219,26 @@ def _replace_media_refs(text: str, replacements: list[tuple[int, int, str]]) -> 
     return re.sub(r"\n{3,}", "\n\n", re.sub(r"[ \t]+\n", "\n", text)).strip()
 
 
-def _load_nostr_auth():
-    """Import sibling nostr_auth loader-agnostically (the test loader imports this file as a bare module)."""
+def _load_sibling(name: str):
+    """Import a sibling module loader-agnostically (the test loader imports this file as a bare module)."""
+    import importlib
     try:
-        from . import nostr_auth  # type: ignore[no-redef]
-        return nostr_auth
+        return importlib.import_module(f".{name}", __package__) if __package__ else _load_sibling_file(name)
     except ImportError:
-        import importlib.util
-        path = Path(__file__).with_name("nostr_auth.py")
-        spec = importlib.util.spec_from_file_location("plugin_adapter_buzz_nostr_auth", path)
-        assert spec is not None and spec.loader is not None
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        return module
+        return _load_sibling_file(name)
 
 
-_nostr_auth = _load_nostr_auth()
+def _load_sibling_file(name: str):
+    import importlib.util
+    path = Path(__file__).with_name(f"{name}.py")
+    spec = importlib.util.spec_from_file_location(f"plugin_adapter_buzz_{name}", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_nostr_auth = _load_sibling("nostr_auth")
 
 # bech32 (BIP-173) npub <-> hex so mention detection and allow-lists accept either form.
 from gateway.authz_mixin import (
@@ -2003,9 +2007,8 @@ def interactive_setup() -> None:
 
 def register(ctx):
     """Plugin entry point: called by the Hermes plugin system."""
-    from .send_targets import SEND_ENTRY_KWARGS
     ctx.register_platform(
-        **SEND_ENTRY_KWARGS,  # send_message target syntax + routing
+        **_load_sibling("send_targets").SEND_ENTRY_KWARGS,  # send_message target syntax + routing
         name="buzz", label="Buzz", adapter_factory=lambda cfg: BuzzAdapter(cfg), check_fn=check_requirements,
         validate_config=validate_config, is_connected=is_connected, required_env=["BUZZ_RELAY_URL", "BUZZ_PRIVATE_KEY"],
         install_hint="Requires the buzz CLI binary (https://github.com/block/buzz) on PATH or at BUZZ_CLI_PATH",

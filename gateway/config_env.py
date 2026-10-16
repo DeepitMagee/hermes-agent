@@ -46,7 +46,11 @@ def _enable_credential_names(platform: Platform) -> tuple:
         return _ENV_ENABLE_CREDENTIALS[platform]
     from gateway.platform_registry import platform_registry
     entry = platform_registry.get(platform.value)
-    return tuple(getattr(entry, "env_enable_credentials", ()) or ())
+    names = tuple(getattr(entry, "env_enable_credentials", ()) or ())
+    if not names:
+        from gateway.platform_env import bundled_env_rows
+        names = (bundled_env_rows(platform.value) or ((), ()))[1]
+    return names
 
 
 def _warn_explicit_disable_beats_env(platform: Platform) -> None:
@@ -237,6 +241,26 @@ def _configured_plugin_entries(config: GatewayConfig) -> list:
         return []
 
 
+def _bundled_env_fallbacks(config: GatewayConfig, entries: list) -> list:
+    """Env rows of bundled platforms with activation evidence but no registry entry (discovery
+    suppressed or the plugin disabled), read from their ``gateway_env`` files; see
+    ``gateway.platform_env.bundled_env_rows``. They only run the env steps, never the enable pass."""
+    from types import SimpleNamespace
+    from gateway.platform_activation import activation_predicate
+    from gateway.platform_env import _BUNDLED_ENV_SIBLINGS, bundled_env_rows
+    have = {getattr(e, "name", "") for e in entries}
+    names = (set(Platform._scan_bundled_plugin_platforms()[0]) | set(_BUNDLED_ENV_SIBLINGS)) - have
+    if not names:
+        return []
+    wanted = activation_predicate(yaml_cfg={}, platform_names=config.platforms)
+    out = []
+    for name in sorted(names):
+        rows = bundled_env_rows(name) if wanted(name) else None
+        if rows and rows[0]:
+            out.append(SimpleNamespace(name=name, env_overrides=rows[0], env_enable_credentials=rows[1]))
+    return out
+
+
 def _platform_rank(entry) -> int:
     # Static ``Platform`` members first, in enum order (the order the env rows always ran in), so
     # ``config.platforms`` insertion order stays deterministic and independent of registry load order.
@@ -333,7 +357,7 @@ def _apply_env_overrides(config: GatewayConfig) -> None:
     disabling (needs every platform's final ``enabled``), and the marker scrub, which must be last.
     """
     entries = _configured_plugin_entries(config)
-    _apply_plugin_env_overrides(config, entries)
+    _apply_plugin_env_overrides(config, entries + _bundled_env_fallbacks(config, entries))
     _api_server(config)
     _webhook(config)
     _msgraph_webhook(config)

@@ -9,10 +9,13 @@ Import-light on purpose (only ``gateway.config``): adapters import it at module 
 """
 
 import contextlib
+import functools
+import importlib.util
 import json
 import logging
 from dataclasses import dataclass
 from functools import partial
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 from gateway.config import GatewayConfig, HomeChannel, Platform, PlatformConfig, _getenv_str
@@ -173,3 +176,38 @@ class EnvCred:
             self.then(config, platform_config)
         if self.home:
             env_home_channel(config, self.platform, self.home, strip=self.home_strip)
+
+
+# --- bundled rows without the plugin -------------------------------------------
+
+# Entries a bundled plugin registers under a name other than its directory, with the export prefix.
+_BUNDLED_ENV_SIBLINGS = {"wecom_callback": ("wecom", "CALLBACK_")}
+
+
+@functools.cache
+def _bundled_gateway_env_module(directory: str) -> Any:
+    """``plugins/platforms/<directory>/gateway_env.py`` executed from its file under a private name:
+    the plugin package (``__init__``, adapter, ``register()``) is never imported. None when absent."""
+    path = Path(__file__).resolve().parent.parent / "plugins" / "platforms" / directory / "gateway_env.py"
+    if not path.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location(f"_hermes_bundled_gateway_env_{directory}", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def bundled_env_rows(name: str) -> Optional[tuple]:
+    """``(env_overrides, env_enable_credentials)`` a BUNDLED platform plugin declares, read without
+    the plugin. For when its registry entry is absent: discovery suppressed (a parked profile's
+    config read, ``HERMES_SAFE_MODE``) or the plugin disabled. These rows were core's own table, and
+    the duplicate-credential guard and the explicit-disable warning still need them then."""
+    from gateway.config import Platform
+    directory, prefix = _BUNDLED_ENV_SIBLINGS.get(name, (name, ""))
+    if directory not in Platform._scan_bundled_plugin_platforms()[0]:
+        return None
+    module = _bundled_gateway_env_module(directory)
+    if module is None:
+        return None
+    return (tuple(getattr(module, f"{prefix}ENV_OVERRIDES", ()) or ()),
+            tuple(getattr(module, f"{prefix}ENV_ENABLE_CREDENTIALS", ()) or ()))
