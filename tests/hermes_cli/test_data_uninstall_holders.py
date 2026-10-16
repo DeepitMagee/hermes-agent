@@ -103,8 +103,9 @@ def test_manual_gateway_drains_over_real_control_transport_before_deletion(layou
         if thread.is_alive():
             loop.call_soon_threadsafe(loop.stop)
         thread.join(timeout=10)
+        if not thread.is_alive():
+            loop.close()
     assert not thread.is_alive()
-    loop.close()
 
 
 @pytest.mark.parametrize("profile", ["", "sibling"])
