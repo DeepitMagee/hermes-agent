@@ -139,8 +139,10 @@ class SessionAuthority:
                 from gateway.session_local_recovery import restore_local_session
                 restore_local_session(self, ref.session_id)
             else:
-                from gateway.session_api import restore_api_session
-                restore_api_session(self, ref.session_id)
+                from gateway.session_route_recovery import restore_routed_session
+                if restore_routed_session(self, ref.session_id) is None:
+                    from gateway.session_api import restore_api_session
+                    restore_api_session(self, ref.session_id)
         from gateway.config import Platform
         source = self.sessions[ref.session_id].source
         if (source is not None and source.platform == Platform.LOCAL
