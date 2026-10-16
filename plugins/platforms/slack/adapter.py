@@ -6912,9 +6912,11 @@ def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
     from plugins.platforms.slack.adapter_hint import PLATFORM_HINT
     from plugins.platforms.slack.send_targets import SEND_ENTRY_KWARGS
+    from .dashboard_card import DASHBOARD_CARD
     ctx.register_platform(
         **SEND_ENTRY_KWARGS,  # send_message target syntax + routing
         name="slack",
+        **DASHBOARD_CARD,
         label="Slack",
         adapter_factory=SlackAdapter,
         check_fn=slack_deps_present,

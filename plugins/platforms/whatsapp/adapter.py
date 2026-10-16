@@ -1253,6 +1253,12 @@ def register(ctx) -> None:
         standalone_send=StandaloneSendPolicy(label="WhatsApp", media=True, captionable=True,
                                              forward_force_document=True, mentions=True, text_direct=True),
         name="whatsapp", label="WhatsApp", adapter_factory=WhatsAppAdapter, check_fn=check_whatsapp_requirements,
+        dashboard_description="Use Hermes through the bundled WhatsApp bridge with QR-based auth.",
+        docs_url="https://github.com/tulir/whatsmeow",
+        dashboard_env_vars=(
+            "WHATSAPP_ENABLED", "WHATSAPP_MODE", "WHATSAPP_DM_POLICY", "WHATSAPP_ALLOWED_USERS",
+        ),
+        dashboard_required_env=(),
         is_connected=_is_connected, required_env=["WHATSAPP_ENABLED"],
         install_hint="WhatsApp requires a Node.js bridge — see the WhatsApp messaging docs",
         setup_fn=interactive_setup, apply_yaml_config_fn=_apply_yaml_config, allowed_users_env="WHATSAPP_ALLOWED_USERS",

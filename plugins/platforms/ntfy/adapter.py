@@ -360,6 +360,8 @@ def register(ctx) -> None:
     ctx.register_platform(
         target_ref_syntax_fn=parse_nonempty,
         name="ntfy", label="ntfy", adapter_factory=lambda cfg: NtfyAdapter(cfg),
+        dashboard_description="Chat with Hermes over ntfy push topics (ntfy.sh or self-hosted).",
+        docs_url="https://hermes-agent.nousresearch.com/docs/user-guide/messaging/ntfy",
         check_fn=check_requirements, validate_config=validate_config, is_connected=is_connected,
         required_env=["NTFY_TOPIC"], install_hint="pip install httpx   # already a Hermes dependency",
         env_enablement_fn=_env_enablement,  # env-only setups show in `gateway status`

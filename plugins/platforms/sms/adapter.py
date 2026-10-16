@@ -342,6 +342,10 @@ def register(ctx) -> None:
     ctx.register_platform(
         standalone_send=StandaloneSendPolicy(text_direct=True),
         name="sms", label="SMS (Twilio)", adapter_factory=SmsAdapter,
+        dashboard_description="Send and receive text messages via Twilio.",
+        docs_url="https://www.twilio.com/console",
+        dashboard_env_vars=("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"),
+        dashboard_required_env=("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"),
         check_fn=check_sms_requirements, is_connected=_is_connected,
         required_env=["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER"],
         install_hint="pip install aiohttp", allowed_users_env="SMS_ALLOWED_USERS",

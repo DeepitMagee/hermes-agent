@@ -702,6 +702,9 @@ def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
     ctx.register_platform(
         name="bluebubbles", label="BlueBubbles (iMessage)", adapter_factory=BlueBubblesAdapter,
+        dashboard_description="Use Hermes through iMessage via a BlueBubbles server.",
+        docs_url="https://bluebubbles.app/",
+        dashboard_env_vars=("BLUEBUBBLES_SERVER_URL", "BLUEBUBBLES_PASSWORD", "BLUEBUBBLES_ALLOWED_USERS"),
         check_fn=check_bluebubbles_requirements, is_connected=_is_connected,
         config_connected_fn=config_connected_extra("server_url", "password"),
         required_env=["BLUEBUBBLES_SERVER_URL", "BLUEBUBBLES_PASSWORD"], install_hint=_INSTALL_HINT,

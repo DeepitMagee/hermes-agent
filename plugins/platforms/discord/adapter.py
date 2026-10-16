@@ -4328,13 +4328,6 @@ class DiscordAdapter(DiscordAuthorizationMixin, DiscordMediaMixin, DiscordThread
             except Exception as e:
                 logger.debug("[Discord] Admin notify via %s failed: %s", target, e)
 
-
-
-
-
-
-
-
     async def send_typing(self, chat_id: str, metadata=None) -> None:
         """Start a persistent typing loop (POST typing every 12s; indicator lasts ~10s).
         TYPING_START is unreliable for bots in DMs; 429 sleeps ``retry_after``; CancelledError ends it."""
@@ -7379,9 +7372,11 @@ def register(ctx) -> None:
     from plugins.platforms.discord.send_targets import SEND_ENTRY_KWARGS
     from plugins.platforms.discord.onboarding import interactive_setup
 
+    from .dashboard_card import DASHBOARD_CARD
     ctx.register_platform(
         **SEND_ENTRY_KWARGS,  # send_message target syntax + routing
         name="discord",
+        **DASHBOARD_CARD,
         label="Discord",
         adapter_factory=DiscordAdapter,
         check_fn=discord_deps_present,

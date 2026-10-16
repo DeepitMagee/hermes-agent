@@ -99,41 +99,21 @@ _MESSAGING_ENV_FALLBACKS: dict[str, dict[str, Any]] = {
 }
 
 
-# Kept in sync with the corresponding frontend validation in ChannelsPage.tsx.
-_TELEGRAM_BOT_TOKEN_RE = re.compile(r"\d+:[A-Za-z0-9_-]{30,}")
-_TELEGRAM_USER_ID_RE = re.compile(r"\d+")
-_SLACK_MEMBER_ID_RE = re.compile(r"[UW][A-Z0-9]{2,}")
+def _env_value_rules(platform_id: str) -> dict[str, tuple[Any, str]]:
+    """``{env key: (accepts(value), 400 detail)}`` declared on the platform plugin's PlatformEntry
+    (``env_value_rules``; e.g. Telegram/Slack reject credentials clearly in the wrong field).
+
+    Resolve this in the request's own scope, right after :func:`_require_platform`: the catalog build
+    there has just materialized every plugin entry, so the lookup imports nothing, whereas inside
+    ``_profile_scope`` the registry's profile overlay may not hold the entry and every rule would
+    silently stop applying."""
+    from gateway.platform_registry import platform_registry
+    entry = platform_registry.get(platform_id)
+    return dict(entry.env_value_rules) if entry is not None else {}
 
 
-def _csv_ids(value: str) -> list[str]:
-    """Split like the gateway parsers (gateway/platforms/*.py): comma, strip, drop
-    empties — so a trailing/interior comma isn't rejected when the runtime accepts it."""
-    return [part.strip() for part in value.split(",") if part.strip()]
-
-
-# (platform, env key) -> (accepts(value), 400 detail). Rejects credentials that
-# are clearly in the wrong field. "*" is Slack's allow-all wildcard.
-_ENV_VALUE_RULES: dict[tuple[str, str], tuple[Any, str]] = {
-    ("telegram", "TELEGRAM_BOT_TOKEN"): (
-        _TELEGRAM_BOT_TOKEN_RE.fullmatch,
-        "Telegram bot token must be the complete token from @BotFather, such as 123456789:ABC…"),
-    ("telegram", "TELEGRAM_ALLOWED_USERS"): (
-        lambda v: all(_TELEGRAM_USER_ID_RE.fullmatch(u) for u in _csv_ids(v)),
-        "Telegram allowed users must be comma-separated numeric user IDs."),
-    ("slack", "SLACK_BOT_TOKEN"): (
-        lambda v: v.startswith("xoxb-"),
-        "Slack Bot Token must start with xoxb-. Paste the bot token from OAuth & Permissions."),
-    ("slack", "SLACK_APP_TOKEN"): (
-        lambda v: v.startswith("xapp-"),
-        "Slack App Token must start with xapp-. Paste the app-level token from Basic Information > App-Level Tokens."),
-    ("slack", "SLACK_ALLOWED_USERS"): (
-        lambda v: all(u == "*" or _SLACK_MEMBER_ID_RE.fullmatch(u) for u in _csv_ids(v)),
-        "Slack allowed user IDs must be comma-separated member IDs like U01ABC2DEF3."),
-}
-
-
-def _validate_messaging_env_value(platform_id: str, key: str, value: str) -> None:
-    rule = _ENV_VALUE_RULES.get((platform_id, key))
+def _validate_messaging_env_value(rules: dict[str, tuple[Any, str]], key: str, value: str) -> None:
+    rule = rules.get(key)
     if value and rule and not rule[0](value):
         raise HTTPException(status_code=400, detail=rule[1])
 
@@ -675,6 +655,9 @@ def _prune_telegram_onboarding_pairings() -> None:
         _telegram_onboarding_pairings.pop(pairing_id, None)
 
 
+_TELEGRAM_USER_ID_RE = re.compile(r"\d+")
+
+
 def _normalize_telegram_user_id(value: Any) -> str | None:
     normalized = str(value or "").strip()
     return normalized if _TELEGRAM_USER_ID_RE.fullmatch(normalized) else None
@@ -874,6 +857,7 @@ def _multiplex_port_binding_conflict(platform_id: str, requested_profile: Option
 @router.put("/api/messaging/platforms/{platform_id}")
 async def update_messaging_platform(platform_id: str, body: MessagingPlatformUpdate, profile: Optional[str] = None):
     entry = _require_platform(platform_id)
+    env_value_rules = _env_value_rules(platform_id)
 
     target_profile = body.profile or profile
     if body.enabled:
@@ -907,7 +891,7 @@ async def update_messaging_platform(platform_id: str, body: MessagingPlatformUpd
                     continue
                 if is_redacted_credential_preview(trimmed):
                     raise HTTPException(status_code=400, detail=REDACTED_CREDENTIAL_WRITE_DETAIL)
-                _validate_messaging_env_value(platform_id, key, trimmed)
+                _validate_messaging_env_value(env_value_rules, key, trimmed)
                 updates[key] = trimmed
 
             for key in body.clear_env:

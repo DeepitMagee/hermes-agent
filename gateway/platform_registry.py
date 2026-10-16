@@ -146,6 +146,20 @@ class PlatformEntry:
     target_ref_syntax_fn: Optional[Callable[[str], Any]] = None
     # ``gateway.platforms.send_targets.StandaloneSendPolicy`` or None (generic send routing).
     standalone_send: Optional[Any] = None
+    # --- dashboard ---
+    # Channels-page card metadata (hermes_cli/web_server_messaging.py, Desktop + web dashboard).
+    # Every field defaults to "not declared": the card then falls back to ``label`` / ``install_hint``
+    # / ``required_env`` + prefix-discovered env vars.
+    dashboard_label: str = ""  # card title when it differs from ``label`` (status/CLI keep ``label``)
+    dashboard_description: str = ""  # human description; ``install_hint`` is a dependency note
+    docs_url: str = ""  # setup guide linked from the card
+    dashboard_env_vars: tuple = ()  # card fields shown first, in this order, before discovered vars
+    # Credentials the card treats as "configured"; None = ``required_env`` (which also drives
+    # ``hermes setup`` and the child-env scrub, so the card may legitimately ask for a different set).
+    dashboard_required_env: Optional[tuple] = None
+    # ``{ENV_KEY: (accepts(value) -> bool, 400 detail)}``: the dashboard PUT rejects a non-empty value
+    # the predicate refuses, catching credentials pasted into the wrong field.
+    env_value_rules: dict = field(default_factory=dict)
 
 
 def core_ships_platform(name: str) -> bool:

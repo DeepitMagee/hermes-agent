@@ -728,6 +728,9 @@ def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
     ctx.register_platform(
         name="mattermost", label="Mattermost", adapter_factory=MattermostAdapter,
+        dashboard_description="Connect Hermes to Mattermost channels and direct messages.",
+        docs_url="https://mattermost.com/deploy/",
+        dashboard_env_vars=("MATTERMOST_URL", "MATTERMOST_TOKEN", "MATTERMOST_ALLOWED_USERS"),
         check_fn=check_mattermost_requirements, validate_config=validate_mattermost_config,
         is_connected=_is_connected, required_env=["MATTERMOST_URL", "MATTERMOST_TOKEN"],
         install_hint="pip install aiohttp", setup_fn=interactive_setup,

@@ -3258,9 +3258,11 @@ def _is_connected(config) -> bool:
 def register(ctx) -> None:
     from plugins.platforms.matrix.adapter_hint import PLATFORM_HINT
     from plugins.platforms.matrix.send_targets import SEND_ENTRY_KWARGS
+    from .dashboard_card import DASHBOARD_CARD
     ctx.register_platform(
         **SEND_ENTRY_KWARGS,  # send_message target syntax + routing
         name="matrix", label="Matrix", adapter_factory=MatrixAdapter, check_fn=matrix_deps_present,
+        **DASHBOARD_CARD,
         ensure_deps_fn=ensure_matrix_deps, is_connected=_is_connected,
         required_env=["MATRIX_HOMESERVER", "MATRIX_ACCESS_TOKEN"], install_hint="pip install 'mautrix[encryption]'",
         setup_fn=interactive_setup, apply_yaml_config_fn=_apply_yaml_config, allowed_users_env="MATRIX_ALLOWED_USERS",
