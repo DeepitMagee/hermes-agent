@@ -65,6 +65,14 @@ def _canonical_home(home: str | Path) -> str:
     return os.path.normcase(str(Path(home).expanduser().resolve()))
 
 
+def gateway_profile_home(home: str | Path) -> Path:
+    """The profile home whose gateway serves *home*: the home itself, or for a private overlay home
+    (a task dir mirroring a profile through symlinks, its ``gateway.lock`` among them) the profile its
+    lock names. A client compares the owner's ``profile_id`` with this, never the overlay path.
+    Not normcased: ``profile_id`` keeps the owner's own spelling (Windows)."""
+    return _overlay_owner_home(Path(home).expanduser().resolve())
+
+
 def _overlay_owner_home(home: Path) -> Path:
     """Return the owner named by a private overlay's gateway lock, if it has one."""
     if os.name == "nt":

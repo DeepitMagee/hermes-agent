@@ -128,7 +128,9 @@ class GatewayACPAgent(acp.Agent):
         self._gateway = None
         self._connection = None
         self._connect_lock = asyncio.Lock()
-        self._home = get_hermes_home().resolve()
+        # A per-task overlay HERMES_HOME attaches to the profile its symlinked lock names (#138949).
+        from hermes_cli.gateway_runtime import gateway_profile_home
+        self._home = gateway_profile_home(get_hermes_home())
         self._snapshots = {}
         self._event_task = None
         self._terminals = {}
