@@ -156,7 +156,10 @@ class GatewayACPAgent(acp.Agent):
         # Admissions a terminal receipt already delivered: their late message.complete adds nothing.
         self._receipted = {}
         self._pending_cancels = set()
+        # (session, tool_call_id) -> (tool name, args, admission) of a call still open on the editor.
         self._tool_args = {}
+        # Session -> AssistantMessageIdAllocator: the ``messageId`` of the assistant message being streamed.
+        self._message_ids = {}
         # Editor-held compression-tip id -> logical session id (see ``_resume``).
         self._aliases = {}
         self._form_elicitation = False
@@ -750,45 +753,27 @@ class GatewayACPAgent(acp.Agent):
                 task.cancel()
             return
         if kind in {"reasoning.delta", "todo.updated"}:
-            await self._project_side_update(kind, editor_id, payload)
+            await self._project_side_update(kind, sid, editor_id, payload)
             return
-        # In-process turns publish ``tool_name``; managed workers publish ``name``.
-        tool_name = payload.get("tool_name") or payload.get("name") or "tool"
-        if kind == "tool.start":
-            # Deltas before a tool call are commentary the final reply does not repeat: close
-            # that segment so ``message.complete`` measures only the final's own stream.
-            self._close_segment(aid)
-            from acp_adapter.tools import build_tool_start, coerce_tool_args
-            args = coerce_tool_args(payload.get("args"))
-            self._tool_args[(sid, payload["tool_call_id"])] = (tool_name, args)
-            if self._conn:
-                await self._conn.session_update(session_id=editor_id,
-                    update=build_tool_start(payload["tool_call_id"], tool_name, args))
-            return
-        if kind == "tool.complete":
-            from acp_adapter.tools import build_tool_complete
-            name, args = self._tool_args.pop((sid, payload["tool_call_id"]), (tool_name, {}))
-            result = payload.get("result")
-            if self._conn:
-                await self._conn.session_update(session_id=editor_id, update=build_tool_complete(
-                    payload["tool_call_id"], name, result=result if isinstance(result, str) else None,
-                    function_args=args))
+        if kind in {"tool.start", "tool.complete"}:
+            await self._project_tool(kind, sid, editor_id, aid, payload)
             return
         if kind == "message.delta":
             text = _text(payload)
             self._streamed[aid] = self._streamed.get(aid, "") + text
             if text and self._conn:
-                await self._conn.session_update(session_id=editor_id, update=acp.update_agent_message_text(text))
+                await self._conn.session_update(session_id=editor_id, update=self._chunk(sid, text))
         elif kind == "message.interim":
             # Commentary the owner could not stream (``already_streamed`` false) reaches viewers
             # only here; streamed commentary is already on screen. Either way it is its own segment.
             self._close_segment(aid)
             text = _text(payload)
+            self._end_message(sid)
             if not payload.get("already_streamed") and text.strip():
                 self._segments.setdefault(aid, []).append(text)
                 if self._conn:
-                    await self._conn.session_update(session_id=editor_id,
-                                                    update=acp.update_agent_message_text(text + "\n\n"))
+                    await self._conn.session_update(session_id=editor_id, update=self._chunk(sid, text + "\n\n"))
+                self._end_message(sid)
         elif kind == "message.complete":
             if aid in self._settling or aid in self._receipted:
                 # A retry's terminal receipt claimed this reply; it is shown once, from there.
@@ -799,8 +784,11 @@ class GatewayACPAgent(acp.Agent):
             try:
                 remainder = self._final_remainder(aid, payload)
                 if remainder and self._conn:
-                    await self._conn.session_update(session_id=editor_id,
-                                                    update=acp.update_agent_message_text(remainder))
+                    await self._conn.session_update(session_id=editor_id, update=self._chunk(sid, remainder))
+                # The turn is over: its reply's id closes, and a tool call it left open (blocked by a guard,
+                # an approval denied) ends ``failed``, as the in-process agent flushed them at turn end.
+                self._end_message(sid)
+                await self._flush_open_tools(sid, editor_id, aid)
                 async with self._changed:
                     self._terminals[aid] = payload
                     if len(self._terminals) > 256:
@@ -809,7 +797,53 @@ class GatewayACPAgent(acp.Agent):
             finally:
                 self._settling.discard(aid)
 
-    async def _project_side_update(self, kind, editor_id, payload):
+    async def _project_tool(self, kind, sid, editor_id, aid, payload):
+        """``tool.start`` / ``tool.complete`` as the in-process callbacks projected them (#134889 ACP-15)."""
+        from acp_adapter.tools import build_tool_complete, build_tool_start, coerce_tool_args
+        # In-process turns publish ``tool_name``; managed workers publish ``name``.
+        tool_name = payload.get("tool_name") or payload.get("name") or "tool"
+        call_id = payload["tool_call_id"]
+        if kind == "tool.start":
+            # Deltas before a tool call are commentary the final reply does not repeat: close
+            # that segment so ``message.complete`` measures only the final's own stream, and end
+            # that assistant message so the text after the tool opens a new one (a new ``messageId``).
+            self._close_segment(aid)
+            self._end_message(sid)
+            args = coerce_tool_args(payload.get("args"))
+            self._tool_args[(sid, call_id)] = (tool_name, args, aid)
+            if self._conn:
+                await self._conn.session_update(session_id=editor_id, update=build_tool_start(call_id, tool_name, args))
+            return
+        name, args, _ = self._tool_args.pop((sid, call_id), (tool_name, {}, aid))
+        result = payload.get("result")
+        if self._conn:
+            # ``is_error`` is the executor's verdict: a cancelled or failed tool may return plain text the
+            # result heuristic reads as success.
+            await self._conn.session_update(session_id=editor_id, update=build_tool_complete(
+                call_id, name, result=result if isinstance(result, str) else None, function_args=args,
+                is_error=payload.get("is_error") is True))
+
+    async def _flush_open_tools(self, sid, editor_id, aid):
+        """Close every call admission *aid* started and never completed (``failed``: it produced no result)."""
+        from acp_adapter.tools import build_tool_abandoned
+        for key in [key for key, held in self._tool_args.items() if key[0] == sid and held[2] == aid]:
+            name, _, _ = self._tool_args.pop(key)
+            if self._conn:
+                await self._conn.session_update(session_id=editor_id, update=build_tool_abandoned(key[1], name))
+
+    def _chunk(self, sid, text, *, thought=False):
+        """An assistant (or thought) chunk carrying the session's current ``messageId``: ACP clients group
+        chunks into one reply by it and start a new bubble when it changes."""
+        from acp_adapter.events import AssistantMessageIdAllocator
+        update = (acp.update_agent_thought_text if thought else acp.update_agent_message_text)(text)
+        update.message_id = self._message_ids.setdefault(sid, AssistantMessageIdAllocator()).current()
+        return update
+
+    def _end_message(self, sid):
+        if (ids := self._message_ids.get(sid)) is not None:
+            ids.close()
+
+    async def _project_side_update(self, kind, sid, editor_id, payload):
         """Turn events outside the reply text, as the in-process server projected them.
 
         ``reasoning.delta``: the model's reasoning as thought chunks. It never enters the reply's segments,
@@ -818,7 +852,7 @@ class GatewayACPAgent(acp.Agent):
         session is) as the native ``plan`` update Zed renders as its task panel (#134889 ACP-5)."""
         if kind == "reasoning.delta":
             text = _text(payload)
-            update = acp.update_agent_thought_text(text) if text else None
+            update = self._chunk(sid, text, thought=True) if text else None
         else:
             import json
             from acp_adapter.events import _build_plan_update_from_todo_result
@@ -906,6 +940,21 @@ class GatewayACPAgent(acp.Agent):
                                                    or task.result() is not True):
             del self._permissions[key]
 
+    async def _close_card(self, editor_id, tool_call, options, response):
+        """The editor shows a permission request's ``tool_call`` as a pending bubble; once it is answered,
+        close it as the in-process agent did (``permissions.await_permission``): ``completed`` for an allow,
+        ``failed`` for a reject or a dismissal (#134889 ACP-15)."""
+        outcome = getattr(response, "outcome", None)
+        allowed = getattr(outcome, "outcome", None) == "selected" and any(
+            option.option_id == getattr(outcome, "option_id", None) and option.kind.startswith("allow")
+            for option in options)
+        try:
+            await self._conn.session_update(session_id=editor_id, update=acp.update_tool_call(
+                tool_call.tool_call_id, status="completed" if allowed else "failed"))
+        except Exception:
+            # Boundary: display only; a failed close must never cost the user's answer its delivery.
+            logger.debug("ACP permission card %s not closed", tool_call.tool_call_id, exc_info=True)
+
     async def _answer_clarify(self, session_id, prompt):
         from acp.schema import AllowedOutcome
         from acp_adapter.elicitation import (
@@ -921,6 +970,7 @@ class GatewayACPAgent(acp.Agent):
                 tool_call, options, answers = build_clarify_permission(prompt)
                 response = await self._conn.request_permission(
                     session_id=editor_id, tool_call=tool_call, options=options)
+                await self._close_card(editor_id, tool_call, options, response)
                 # A dismissed card (also what ACP answers for the editor's own Stop) is the Skip a
                 # form decline sends; only an unknown option id is no answer.
                 answer = (answers.get(response.outcome.option_id)
@@ -953,6 +1003,7 @@ class GatewayACPAgent(acp.Agent):
                 tool_call = _build_permission_tool_call(prompt.get('command', ''), prompt.get('description', ''))
             response = await self._conn.request_permission(session_id=self._editor_id(session_id),
                 tool_call=tool_call, options=options)
+            await self._close_card(self._editor_id(session_id), tool_call, options, response)
             # Transport loss/cancel is not a denial: the canonical waiter belongs
             # to the execution and may still be answered by another viewer.
             if not isinstance(response.outcome, AllowedOutcome):
