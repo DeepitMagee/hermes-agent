@@ -458,7 +458,34 @@ class GatewaySessionCommandsMixin:
             return paused_notice
         if getattr(self, "_external_drain_active", False):
             return t("gateway.busy.draining_maintenance")
+        authority_reply = self._retry_authority_refusal(source)
+        if authority_reply is not None:
+            return authority_reply
         return self._active_session_limit_message(self._session_key_for_source(source))
+
+    def _retry_authority_refusal(self, source: SessionSource) -> Optional[str]:
+        """The routed authority's own admission refusals for the re-send (#139257): a draining or
+        retiring runtime (``runtime_draining``) and a full FIFO (``queue_full``), the gates
+        ``admit_native`` applies. Same not-race-free caveat as the caller."""
+        from gateway.session_authorities import active_authority
+        authority = active_authority(self)
+        if authority is None:
+            return None
+        import hermes_state_runtime
+        from hermes_state_runtime import RuntimeStoreError
+        try:
+            authority._require_admission_open()
+        except RuntimeStoreError:
+            return t("gateway.busy.drain_rejected", action=self._status_action_gerund())
+        entry = self.session_store.lookup_by_session_key(self._session_key_for_source(source))
+        if entry is None:
+            return None
+        rows = hermes_state_runtime.list_session_admissions(
+            authority.db, session_id=authority.logical_owner(entry.session_id))
+        if sum(row["status"] == "queued" for row in rows) >= hermes_state_runtime.ADMISSION_QUEUE_MAX:
+            from gateway.session_ingress import QUEUE_FULL_REPLY
+            return QUEUE_FULL_REPLY
+        return None
 
     def _record_model_friction(self, signal: str, source, session_id: str, turns: int = 1) -> None:
         """Slash dispatch does not install the routed profile's scope, so a multiplexed runner
