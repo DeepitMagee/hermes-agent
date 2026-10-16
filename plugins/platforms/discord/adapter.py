@@ -7368,8 +7368,8 @@ _is_connected = _env_is_connected("DISCORD_BOT_TOKEN")
 
 def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
-    from plugins.platforms.discord.adapter_hint import PLATFORM_HINT
-    from plugins.platforms.discord.send_targets import SEND_ENTRY_KWARGS
+    from .adapter_hint import PLATFORM_HINT
+    from .send_targets import SEND_ENTRY_KWARGS
     from plugins.platforms.discord.onboarding import interactive_setup
 
     from .dashboard_card import DASHBOARD_CARD

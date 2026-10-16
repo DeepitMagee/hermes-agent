@@ -7308,7 +7308,7 @@ def _apply_yaml_config(yaml_cfg: dict, telegram_cfg: dict) -> dict | None:
 
 def register(ctx) -> None:
     """Plugin entry point — called by the Hermes plugin system."""
-    from plugins.platforms.telegram.adapter_hint import PLATFORM_HINT
+    from .adapter_hint import PLATFORM_HINT
     from .dashboard_card import DASHBOARD_CARD
     from . import gateway_env  # env -> GatewayConfig bridge (gateway.config_env)
     ctx.register_platform(

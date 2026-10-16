@@ -3256,8 +3256,8 @@ def _is_connected(config) -> bool:
 
 
 def register(ctx) -> None:
-    from plugins.platforms.matrix.adapter_hint import PLATFORM_HINT
-    from plugins.platforms.matrix.send_targets import SEND_ENTRY_KWARGS
+    from .adapter_hint import PLATFORM_HINT
+    from .send_targets import SEND_ENTRY_KWARGS
     from .dashboard_card import DASHBOARD_CARD
     from . import gateway_env  # env -> GatewayConfig bridge (gateway.config_env)
     ctx.register_platform(

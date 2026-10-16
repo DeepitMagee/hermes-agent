@@ -2003,7 +2003,7 @@ def interactive_setup() -> None:
 
 def register(ctx):
     """Plugin entry point: called by the Hermes plugin system."""
-    from plugins.platforms.buzz.send_targets import SEND_ENTRY_KWARGS
+    from .send_targets import SEND_ENTRY_KWARGS
     ctx.register_platform(
         **SEND_ENTRY_KWARGS,  # send_message target syntax + routing
         name="buzz", label="Buzz", adapter_factory=lambda cfg: BuzzAdapter(cfg), check_fn=check_requirements,
