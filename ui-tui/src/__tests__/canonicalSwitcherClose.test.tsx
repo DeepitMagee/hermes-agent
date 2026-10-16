@@ -17,6 +17,9 @@ import { DEFAULT_THEME } from '../theme.js'
 // is not in the canonical contract) and then reported "session was already closed". The view closes
 // the row it holds with main's `tui_close` stamp; a row it holds nothing for is not claimed as closed.
 
+// vi.waitFor's 1 s default is shorter than a first Ink frame on a loaded CI host.
+const WAIT = { timeout: 10_000 }
+
 const liveRow = { id: 'live', session_id: 'live', title: 'Current conversation', started_at: 2, message_count: 1, running: false }
 
 function detachFixture() {
@@ -70,9 +73,9 @@ function detachFixture() {
   return { request, lifecycle: () => lifecycle,
     async attach(sid: string) {
       lifecycle.resumeById(sid)
-      await vi.waitFor(() => expect(pending.length).toBeGreaterThan(0))
+      await vi.waitFor(() => expect(pending.length).toBeGreaterThan(0), WAIT)
       pending.shift()!.resolve()
-      await vi.waitFor(() => expect(getUiState().sid).toBe(sid))
+      await vi.waitFor(() => expect(getUiState().sid).toBe(sid), WAIT)
     },
     cleanup() {
       instance.unmount()
@@ -144,14 +147,14 @@ function mountSwitcher(onClose: (id: string) => Promise<null | { closed?: boolea
     stderr: new PassThrough() as any, patchConsole: false })
 
   const closeLive = async () => {
-    await vi.waitFor(() => expect(out.text).toContain('Current conversation'))
+    await vi.waitFor(() => expect(out.text).toContain('Current conversation'), WAIT)
     // `^d` on the live row the view is on (the initial selection lands there).
     stdin.write('\u0004')
-    await vi.waitFor(() => expect(onClose).toHaveBeenCalledWith('live'))
+    await vi.waitFor(() => expect(onClose).toHaveBeenCalledWith('live'), WAIT)
     await vi.waitFor(() => {
       instance.rerender(React.cloneElement(element))
       expect(out.text).toMatch(/error: /)
-    })
+    }, WAIT)
   }
 
   return { closeLive, instance, out }
