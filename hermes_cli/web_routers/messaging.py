@@ -106,10 +106,16 @@ def _env_value_rules(platform_id: str) -> dict[str, tuple[Any, str]]:
     Resolve this in the request's own scope, right after :func:`_require_platform`: the catalog build
     there has just materialized every plugin entry, so the lookup imports nothing, whereas inside
     ``_profile_scope`` the registry's profile overlay may not hold the entry and every rule would
-    silently stop applying."""
+    silently stop applying. Without rules on the entry (the dashboard's own profile disabled the
+    plugin, a user plugin overrides it) a bundled platform's ``dashboard_card.py`` answers, read from
+    its file: the rules guard the edited profile's values whatever the dashboard's profile loads."""
+    from gateway.platform_env import bundled_sibling
     from gateway.platform_registry import platform_registry
     entry = platform_registry.get(platform_id)
-    return dict(entry.env_value_rules) if entry is not None else {}
+    if entry is not None and entry.env_value_rules:
+        return dict(entry.env_value_rules)
+    card = getattr(bundled_sibling(platform_id, "dashboard_card"), "DASHBOARD_CARD", None) or {}
+    return dict(card.get("env_value_rules") or {})
 
 
 def _validate_messaging_env_value(rules: dict[str, tuple[Any, str]], key: str, value: str) -> None:

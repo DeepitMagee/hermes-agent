@@ -185,13 +185,17 @@ _BUNDLED_ENV_SIBLINGS = {"wecom_callback": ("wecom", "CALLBACK_")}
 
 
 @functools.cache
-def _bundled_gateway_env_module(directory: str) -> Any:
-    """``plugins/platforms/<directory>/gateway_env.py`` executed from its file under a private name:
-    the plugin package (``__init__``, adapter, ``register()``) is never imported. None when absent."""
-    path = Path(__file__).resolve().parent.parent / "plugins" / "platforms" / directory / "gateway_env.py"
+def bundled_sibling(directory: str, stem: str = "gateway_env") -> Any:
+    """``plugins/platforms/<directory>/<stem>.py`` (a light declaration module importing only core)
+    executed from its file under a private name: the plugin package (``__init__``, adapter,
+    ``register()``) is never imported. None when absent or *directory* is not a bundled plugin."""
+    from gateway.config import Platform
+    if directory not in Platform._scan_bundled_plugin_platforms()[0]:
+        return None
+    path = Path(__file__).resolve().parent.parent / "plugins" / "platforms" / directory / f"{stem}.py"
     if not path.is_file():
         return None
-    spec = importlib.util.spec_from_file_location(f"_hermes_bundled_gateway_env_{directory}", path)
+    spec = importlib.util.spec_from_file_location(f"_hermes_bundled_{stem}_{directory}", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -202,11 +206,8 @@ def bundled_env_rows(name: str) -> Optional[tuple]:
     the plugin. For when its registry entry is absent: discovery suppressed (a parked profile's
     config read, ``HERMES_SAFE_MODE``) or the plugin disabled. These rows were core's own table, and
     the duplicate-credential guard and the explicit-disable warning still need them then."""
-    from gateway.config import Platform
     directory, prefix = _BUNDLED_ENV_SIBLINGS.get(name, (name, ""))
-    if directory not in Platform._scan_bundled_plugin_platforms()[0]:
-        return None
-    module = _bundled_gateway_env_module(directory)
+    module = bundled_sibling(directory)
     if module is None:
         return None
     return (tuple(getattr(module, f"{prefix}ENV_OVERRIDES", ()) or ()),
@@ -216,11 +217,8 @@ def bundled_env_rows(name: str) -> Optional[tuple]:
 def bundled_authz(name: str) -> dict:
     """``AUTHZ`` (allowlist / allow-all / allow-bots / own-policy env names) a bundled platform
     plugin declares in its ``gateway_env.py``, read without the plugin; {} for other names."""
-    from gateway.config import Platform
     directory, prefix = _BUNDLED_ENV_SIBLINGS.get(name, (name, ""))
-    if directory not in Platform._scan_bundled_plugin_platforms()[0]:
-        return {}
-    module = _bundled_gateway_env_module(directory)
+    module = bundled_sibling(directory)
     return dict(getattr(module, f"{prefix}AUTHZ", None) or {}) if module is not None else {}
 
 

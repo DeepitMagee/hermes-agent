@@ -505,9 +505,9 @@ def _iter_home_target_platforms():
         from hermes_cli.plugins import discover_plugins
         discover_plugins()  # idempotent
         from gateway.platform_registry import platform_registry
-        named = {e.name for e in platform_registry.plugin_entries() if e.cron_deliver_env_var}
+        named = [e.name for e in platform_registry.plugin_entries() if e.cron_deliver_env_var]
         yield from (n for n in _HOME_TARGET_PRIORITY if n in named)
-        yield from sorted(named - set(_HOME_TARGET_PRIORITY))
+        yield from (n for n in named if n not in _HOME_TARGET_PRIORITY)  # registry order, as before
 
 
 def _relay_fronted_delivery_platforms(connected: set) -> set:
