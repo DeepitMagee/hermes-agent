@@ -32,6 +32,12 @@ _DESCENDANTS_SQL = f"""
             """
 
 
+# Desktop 0.22.2's ``readableError`` keeps the HTTP ``detail`` and shows its "app and backend are
+# on different versions" toast (with an Update action) for "out of sync (different versions)".
+CLIENT_UPGRADE_REQUIRED = ('client_upgrade_required: this app is out of sync (different versions) '
+                           'with the Hermes backend; update the app to edit sessions')
+
+
 def _session_latest_descendant(session_id: str, db):
     """Resolve a session id to the newest child leaf session.
 
@@ -194,6 +200,11 @@ async def _mutate_session_request(request, profile, session_id, *, request_id,
         _, errors = authority.db._validate_import_payload(payload['sessions'])
         if errors:
             raise HTTPException(status_code=400, detail={'errors': errors})
+    if request_id is None and expected_revision is None and expected_generation is None:
+        # A pre-fence client (Desktop <= 0.22.2) sends none of the identity. The owner never
+        # commits an unfenced write, so name the upgrade; the wording is what those builds'
+        # toast summariser maps to "different versions, update" (#139742).
+        raise HTTPException(status_code=409, detail=CLIENT_UPGRADE_REQUIRED)
     if request_id is None or expected_revision is None:
         raise HTTPException(status_code=409, detail='mutation_identity_required')
     params = dict(session_id=session_id, request_id=request_id, expected_revision=expected_revision,
