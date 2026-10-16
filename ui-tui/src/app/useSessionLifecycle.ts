@@ -236,6 +236,51 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
     await Promise.all(open.map(([sessionId, subscriptionId]) => detachCanonical(sessionId, subscriptionId, 'tui_shutdown')))
   }, [detachCanonical])
 
+  // The Ink session switcher's `^d` close of a live row. On the legacy transport it is main's
+  // `session.close`; on a canonical gateway that method is not in the contract (-32601), so the view
+  // can only drop its own hold with main's `tui_close` stamp: the owner ends the idle local session
+  // once the last viewer leaves, which is what takes the row out of the live feed.
+  const closeLiveView = useCallback(
+    async (targetSid: string): Promise<null | SessionCloseResponse> => {
+      if (!gw.isCanonical) {
+        const closed = await rpc<SessionCloseResponse>('session.close', { session_id: targetSid })
+
+        closed?.messages?.forEach(message => sys(message))
+
+        return closed
+      }
+
+      // An in-flight detach for this row (a resume switch, /new) wins: this view no longer holds it.
+      await canonicalDetachFlights.current.get(targetSid)
+
+      const subscriptionId = canonicalSubscriptions.current.get(targetSid)
+
+      if (!subscriptionId) {
+        // A live row this view holds nothing for is not ours to end (another viewer's session, or an
+        // ownerless row the gateway kept): nothing is sent, and the caller reports no close at all.
+        return null
+      }
+
+      const result = asRpcResult<SessionDetachResponse>(
+        await rpc<SessionDetachResponse>('session.detach', {
+          end_reason: 'tui_close',
+          session_id: targetSid,
+          subscription_id: subscriptionId
+        })
+      )
+
+      if (!result?.detached) {
+        // The subscription was already stale: main had dropped this view's hold, so nothing was closed.
+        return null
+      }
+
+      canonicalSubscriptions.current.delete(targetSid)
+
+      return { closed: true }
+    },
+    [gw.isCanonical, rpc, sys]
+  )
+
   const disposeStaleAttachments = useCallback(() => {
     // In-flight attaches can share a token before either result is adopted.
     // Decide disposal only after their handlers have adopted (or refused) it.
@@ -729,6 +774,7 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
     () => ({
       activateLiveSession,
       closeForExit,
+      closeLiveView,
       closeSession,
       guardBusySessionSwitch,
       newLiveSession,
@@ -741,6 +787,7 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
     [
       activateLiveSession,
       closeForExit,
+      closeLiveView,
       closeSession,
       guardBusySessionSwitch,
       newLiveSession,
